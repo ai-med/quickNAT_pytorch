@@ -1,4 +1,4 @@
-# relaynet_pytorch
+# quickNAT_pytorch
 
 PyTorch Implementation of QuickNAT
 
