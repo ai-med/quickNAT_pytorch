@@ -56,6 +56,6 @@ class CombinedLoss(nn.Module):
         # TODO: why?
         # target_bin = target_bin.type(torch.FloatTensor).cuda()
         target = target.type(torch.LongTensor).cuda()
-        y = torch.mean(self.cross_entropy_loss.forward(input, target))
-        # y = torch.mean(torch.mul(self.cross_entropy_loss.forward(input, target), weight))
+        #y = torch.mean(self.cross_entropy_loss.forward(input, target))
+        y = torch.mean(torch.mul(self.cross_entropy_loss.forward(input, target), weight))
         return y
