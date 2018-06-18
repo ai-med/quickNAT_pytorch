@@ -71,7 +71,7 @@ class Solver(object):
                                         gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
 
         self._reset_histories()
-        iter_per_epoch = 10
+        iter_per_epoch = 1
         # iter_per_epoch = len(train_loader)
 
         if torch.cuda.is_available():
@@ -99,11 +99,8 @@ class Solver(object):
                     loss = self.loss_func(output, y, w)
                     loss.backward()
                     optim.step()
-                    print('[Iteration : ' + str(iter) + '/' + str(iter_per_epoch * num_epochs) + '] : ' + str(loss.data[0]))
-                    #if iter % log_nth == 0:
-                    #    self.train_loss_history.append(loss.data[0])
-                    #    print('[Iteration : ' + str(iter) + '/' + str(iter_per_epoch * num_epochs) + '] : ' + str(
-                    #        loss.data[0]))
+                if (i_batch % 50 == 0):
+                    print('[Iteration : ' + str(i_batch) + '] : ' + str(loss.data[0]))
 
                 _, batch_output = torch.max(model(X), dim=1)
                 #avg_dice = per_class_dice(batch_output, y, self.NumClass)

@@ -87,9 +87,9 @@ class ClassifierBlock(nn.Module):
     def __init__(self, params):
         super(ClassifierBlock, self).__init__()
         self.conv = nn.Conv2d(params['num_channels'], params['num_class'], params['kernel_c'], params['stride_conv'])
-        self.softmax = nn.Softmax2d()
+        #self.softmax = nn.Softmax2d()
 
     def forward(self, input):
         out_conv = self.conv(input)
-        out_logit = self.softmax(out_conv)
-        return out_logit
+        #out_logit = self.softmax(out_conv)
+        return out_conv

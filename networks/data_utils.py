@@ -61,6 +61,8 @@ def get_imdb_data():
     Tr_Label = np.squeeze(Label[train_id, :, :, :]) - 1
     Tr_weights = weights[train_id, :, :, :]
     Tr_weights = np.tile(Tr_weights, [1, NumClass, 1, 1])
+    print(np.amax(Tr_Label))
+    print(np.amin(Tr_Label))
 
     Te_Dat = Data[test_id, :, :, :]
     Te_Label = np.squeeze(Label[test_id, :, :, :]) - 1
