@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torch.autograd import Variable
-from networks.solver import Solver
-from networks.quickNAT import quickNAT
-from networks.data_utils import get_imdb_data
+from quickNat_pytorch.solver import Solver
+from quickNat_pytorch.quickNAT import quickNAT
+from quickNat_pytorch.data_utils import get_imdb_data
 
 #torch.set_default_tensor_type('torch.FloatTensor')
 

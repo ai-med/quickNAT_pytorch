@@ -1,0 +1,13 @@
+README.md
+setup.py
+quickNAT_pytorch.egg-info/PKG-INFO
+quickNAT_pytorch.egg-info/SOURCES.txt
+quickNAT_pytorch.egg-info/dependency_links.txt
+quickNAT_pytorch.egg-info/top_level.txt
+quickNat_pytorch/__init__.py
+quickNat_pytorch/data_utils.py
+quickNat_pytorch/quickNAT.py
+quickNat_pytorch/solver.py
+quickNat_pytorch/net_api/__init__.py
+quickNat_pytorch/net_api/losses.py
+quickNat_pytorch/net_api/sub_module.py
