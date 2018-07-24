@@ -43,7 +43,6 @@ class DiceLoss(_Loss):
             """
         eps = 0.0001
 
-        output = output.exp()
         encoded_target = output.detach() * 0
         if ignore_index is not None:
             mask = target == ignore_index
