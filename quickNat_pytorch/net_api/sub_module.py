@@ -24,20 +24,20 @@ class DenseBlock(nn.Module):
         padding_h = int((params['kernel_h'] - 1) / 2)
         padding_w = int((params['kernel_w'] - 1) / 2)
 
-        conv1_out_size = int(params['num_channels']+params['num_filters'])
-        conv2_out_size = int(params['num_channels']+params['num_filters']+params['num_filters'])
+        conv1_out_size = int(params['num_channels'] + params['num_filters'])
+        conv2_out_size = int(params['num_channels'] + params['num_filters'] + params['num_filters'])
 
         self.conv1 = nn.Conv2d(in_channels=params['num_channels'], out_channels=params['num_filters'],
-                              kernel_size=(params['kernel_h'], params['kernel_w']),
-                              padding=(padding_h, padding_w),
-                              stride=params['stride_conv'])
+                               kernel_size=(params['kernel_h'], params['kernel_w']),
+                               padding=(padding_h, padding_w),
+                               stride=params['stride_conv'])
         self.conv2 = nn.Conv2d(in_channels=conv1_out_size, out_channels=params['num_filters'],
                                kernel_size=(params['kernel_h'], params['kernel_w']),
                                padding=(padding_h, padding_w),
                                stride=params['stride_conv'])
         self.conv3 = nn.Conv2d(in_channels=conv2_out_size, out_channels=params['num_filters'],
-                               kernel_size=(1,1),
-                               padding=(0,0),
+                               kernel_size=(1, 1),
+                               padding=(0, 0),
                                stride=params['stride_conv'])
         self.batchnorm1 = nn.BatchNorm2d(num_features=params['num_channels'])
         self.batchnorm2 = nn.BatchNorm2d(num_features=conv1_out_size)
@@ -52,7 +52,7 @@ class DenseBlock(nn.Module):
         o5 = self.batchnorm2(o4)
         o6 = self.prelu(o5)
         o7 = self.conv2(o6)
-        o8 = torch.cat((input,o3,o7), dim=1)
+        o8 = torch.cat((input, o3, o7), dim=1)
         o9 = self.batchnorm3(o8)
         o10 = self.prelu(o9)
         out = self.conv3(o10)
@@ -87,9 +87,9 @@ class ClassifierBlock(nn.Module):
     def __init__(self, params):
         super(ClassifierBlock, self).__init__()
         self.conv = nn.Conv2d(params['num_channels'], params['num_class'], params['kernel_c'], params['stride_conv'])
-        #self.softmax = nn.Softmax2d()
+        # self.softmax = nn.Softmax2d()
 
     def forward(self, input):
         out_conv = self.conv(input)
-        #out_logit = self.softmax(out_conv)
+        # out_logit = self.softmax(out_conv)
         return out_conv
