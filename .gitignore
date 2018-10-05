@@ -2,7 +2,7 @@
 .idea/*
 **/venv
 **/.ipynb_checkpoints
-**/.__pycache__
+**/__pycache__/**
 models/dev_test
 models/dev_test/*
 build

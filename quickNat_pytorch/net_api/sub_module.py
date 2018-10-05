@@ -13,14 +13,15 @@ class DenseBlock(nn.Module):
         'stride_conv':1,
         'pool':2,
         'stride_pool':2,
-        'num_classes':28,s
-        'se_block':False
+        'num_classes':28,
+        'se_block':False,
+        'drop_out':0,2
     }
     '''
 
     def __init__(self, params):
         super(DenseBlock, self).__init__()
-        if params['se_block']:
+        if  params['se_block']:
             self.se_block = params['se_block']
             self.channelSELayer = se.ChannelSpatialSELayer(params['num_filters'])
             
@@ -46,6 +47,11 @@ class DenseBlock(nn.Module):
         self.batchnorm2 = nn.BatchNorm2d(num_features=conv1_out_size)
         self.batchnorm3 = nn.BatchNorm2d(num_features=conv2_out_size)
         self.prelu = nn.PReLU()
+        if params['drop_out'] > 0.0:
+            self.drop_out_needed = True
+            self.drop_out = nn.Dropout2d(params['drop_out'])
+        else:
+            self.drop_out_needed = False
         
 
     def forward(self, input):
@@ -72,6 +78,9 @@ class EncoderBlock(DenseBlock):
         out_block = super(EncoderBlock, self).forward(input)
         if hasattr(self, 'se_block') and self.se_block:
             out_block = self.channelSELayer(out_block)
+        if self.drop_out_needed:
+            out_block = self.drop_out(out_block)
+            
         out_encoder, indices = self.maxpool(out_block)
         return out_encoder, out_block, indices
 
@@ -87,6 +96,9 @@ class DecoderBlock(DenseBlock):
         out_block = super(DecoderBlock, self).forward(concat)
         if hasattr(self, 'se_block') and self.se_block:
             out_block = self.channelSELayer(out_block)
+            
+        if self.drop_out_needed:
+            out_block = self.drop_out(out_block)            
         return out_block
 
 

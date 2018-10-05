@@ -70,9 +70,9 @@ class DiceLoss(_Loss):
 
 
 class CrossEntropyLoss2d(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None):
         super(CrossEntropyLoss2d, self).__init__()
-        self.nll_loss = nn.CrossEntropyLoss(weight, size_average)
+        self.nll_loss = nn.CrossEntropyLoss(weight)
 
     def forward(self, inputs, targets):
         return self.nll_loss(inputs, targets)
@@ -87,7 +87,7 @@ class CombinedLoss(nn.Module):
     def forward(self, input, target, weight):
         # TODO: why?
         target = target.type(torch.LongTensor).cuda()
-        input_soft = F.softmax(input)
+        input_soft = F.softmax(input, dim = 1)
         y2 = torch.mean(self.dice_loss(input_soft, target))
         y1 = torch.mean(torch.mul(self.cross_entropy_loss.forward(input, target), weight))
         y = y1 + y2
