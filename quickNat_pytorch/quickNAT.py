@@ -61,9 +61,9 @@ class quickNAT(nn.Module):
     def enable_test_dropout(self):
         attr_dict = self.__dict__['_modules']
         for i in range(1,5):
-            network_block = attr_dict['encode'+str(i)]
-            attr_dict['encode'+str(i)].drop_out = attr_dict['encode'+str(i)].drop_out.apply(nn.Module.train)
-            attr_dict['decode'+str(i)].drop_out = attr_dict['decode'+str(i)].drop_out.apply(nn.Module.train)
+            encode_block, decode_block = attr_dict['encode'+str(i)], attr_dict['decode'+str(i)]
+            encode_block.drop_out = encode_block.drop_out.apply(nn.Module.train)
+            decode_block.drop_out = decode_block.drop_out.apply(nn.Module.train)
             
     @property
     def is_cuda(self):
