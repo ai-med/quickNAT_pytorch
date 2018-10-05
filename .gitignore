@@ -3,3 +3,5 @@
 **/venv
 **/.ipynb_checkpoints
 **/.__pycache__
+models/dev_test
+models/dev_test/*
