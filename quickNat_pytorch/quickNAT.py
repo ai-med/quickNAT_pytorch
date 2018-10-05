@@ -18,6 +18,7 @@ class quickNAT(nn.Module):
         'pool':2,
         'stride_pool':2,
         'num_classes':28
+        'se_block: False'
     }
 
     """

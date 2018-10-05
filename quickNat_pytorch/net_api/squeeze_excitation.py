@@ -5,37 +5,32 @@ import torch.nn as nn
 class ChannelSELayer(nn.Module):
     """
     Re-implementation of Squeeze-and-Excitation (SE) block described in::
-
-         Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507
+    
+    Hu et al., Squeeze-and-Excitation Networks, arXiv:1709.01507
     """
 
-    def __int__(self, reduction_ratio=2):
-        self.reduction_ratio = reduction_ratio
+    def __init__(self, num_channels, reduction_ratio=2):
         super(ChannelSELayer, self).__init__()
+        num_channels_reduced = num_channels // reduction_ratio
+        self.reduction_ratio = reduction_ratio
+        self.fc1 = nn.Linear(num_channels, num_channels_reduced, bias=False)
+        self.fc2 = nn.Linear(num_channels_reduced, num_channels, bias=False)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        
 
-    def forward(self, input: torch.Tensor):
-        input_rank = len(input.shape)
-        reduce_indices = list(range(input))[1:-1]
-        squeeze_tensor = input.mean(dim=reduce_indices)
+    def forward(self, input_tensor):
+        batch_size, num_channels, H, W = input_tensor.size()
+        input_rank = len(input_tensor.shape)
+        squeeze_tensor = input_tensor.view(batch_size, num_channels, -1).mean(dim=2)
 
         # channel excitation
-        num_channels = int(squeeze_tensor.shape[-1])
-        reduction_ratio = self.reduction_ratio
-        if num_channels % reduction_ratio != 0:
-            raise ValueError("reduction ratio incompatible with number of input tensor channels")
-        num_channels_reduced = num_channels / reduction_ratio
-        relu = nn.ReLU()
-        sigmoid = nn.Sigmoid()
-        fc1 = nn.Linear(num_channels, num_channels_reduced, bias=False)
-        fc2 = nn.Linear(num_channels_reduced, num_channels, bias=False)
+        fc_out_1 = self.relu(self.fc1(squeeze_tensor))
+        fc_out_2 = self.sigmoid(self.fc2(fc_out_1))
 
-        fc_out_1 = relu(fc1(squeeze_tensor))
-        fc_out_2 = sigmoid(fc2(fc_out_1))
 
-        with len(fc_out_2.shape) < input_rank:
-            fc_out_2 = fc_out_2.unsqueeze(1)
-
-        output_tensor = torch.mul(input, fc_out_2)
+        a, b = squeeze_tensor.size()
+        output_tensor = torch.mul(input_tensor, fc_out_2.view(a,b,1,1))
         return output_tensor
 
 
@@ -44,23 +39,22 @@ class SpatialSELayer(nn.Module):
     Re-implementation of SE block -- squeezing spatially
     and exciting channel-wise described in::
 
-        Roy et al., Concurrent Spatial and Channel Squeeze & Excitation
-        in Fully Convolutional Networks, MICCAI 2018
-
-
+    Roy et al., Concurrent Spatial and Channel Squeeze & Excitation
+    in Fully Convolutional Networks, MICCAI 2018
     """
 
-    def __init__(self):
+    def __init__(self, num_channels):
         super(SpatialSELayer, self).__init__()
+        self.conv = nn.Conv2d(num_channels, 1, 1)
+        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, input):
+    def forward(self, input_tensor):
         # spatial squeeze
-        num_channels = input.shape[1]
-        conv = nn.Conv2d(num_channels, 1, 1)
-        sigmoid = nn.Sigmoid()
-        squeeze_tensor = sigmoid(conv(input))
+        batch_size,_,a,b = input_tensor.size()
+        squeeze_tensor = self.sigmoid(self.conv(input_tensor))
+        
         # spatial excitation
-        output_tensor = torch.mul(input, squeeze_tensor)
+        output_tensor = torch.mul(input_tensor, squeeze_tensor.view(batch_size,1,a,b))
 
         return output_tensor
 
@@ -70,18 +64,15 @@ class ChannelSpatialSELayer(nn.Module):
     Re-implementation of concurrent spatial and channel
     squeeze & excitation::
 
-        Roy et al., Concurrent Spatial and Channel Squeeze & Excitation
-        in Fully Convolutional Networks, arXiv:1803.02579
-
+    Roy et al., Concurrent Spatial and Channel Squeeze & Excitation
+    in Fully Convolutional Networks, arXiv:1803.02579
     """
 
-    def __init__(self,
-                 reduction_ratio=2):
-        self.reduction_ratio = reduction_ratio
+    def __init__(self, num_channels, reduction_ratio=2):
         super(ChannelSpatialSELayer, self).__init__()
+        self.cSE = ChannelSELayer(num_channels, reduction_ratio)
+        self.sSE = SpatialSELayer(num_channels)
 
-    def forward(self, input):
-        cSE = ChannelSELayer(self.reduction_ratio)
-        sSE = SpatialSELayer()
-        output_tensor = torch.max(cSE(input), sSE(input))
+    def forward(self, input_tensor):
+        output_tensor = torch.max(self.cSE(input_tensor), self.sSE(input_tensor))
         return output_tensor

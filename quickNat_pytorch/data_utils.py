@@ -30,19 +30,19 @@ class ImdbData(data.Dataset):
 def get_imdb_data():
     # TODO: Need to change later
     NumClass = 28
-
+    data_root = "../data/MALC_Coronal_Data/"
     # Load DATA
-    Data = h5py.File('datasets/Data.h5', 'r')
+    Data = h5py.File(data_root+'Data.h5', 'r')
     a_group_key = list(Data.keys())[0]
     Data = list(Data[a_group_key])
     Data = np.squeeze(np.asarray(Data))
     Data = Data.astype(np.float32)
-    Label = h5py.File('datasets/label.h5', 'r')
+    Label = h5py.File(data_root+'label.h5', 'r')
     a_group_key = list(Label.keys())[0]
     Label = list(Label[a_group_key])
     Label = np.squeeze(np.asarray(Label))
     Label = Label.astype(np.float32)
-    set = h5py.File('datasets/set.h5', 'r')
+    set = h5py.File(data_root+'set.h5', 'r')
     a_group_key = list(set.keys())[0]
     set = list(set[a_group_key])
     set = np.squeeze(np.asarray(set))
