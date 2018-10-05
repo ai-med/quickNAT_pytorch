@@ -66,6 +66,7 @@ class Solver(object):
         - num_epochs: total number of training epochs
         - log_nth: log training accuracy and loss every nth iteration
         """
+
         optim = self.optim(model.parameters(), **self.optim_args)
         scheduler = lr_scheduler.StepLR(optim, step_size=self.step_size,
                                         gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
@@ -100,7 +101,7 @@ class Solver(object):
                     loss.backward()
                     optim.step()
                 if (i_batch % 50 == 0):
-                    print('[Iteration : ' + str(i_batch) + '] : ' + str(loss.data[0]))
+                    print('[Iteration : ' + str(i_batch) + '] : ' + str(loss.data.item()))
 
                 _, batch_output = torch.max(model(X), dim=1)
                 #avg_dice = per_class_dice(batch_output, y, self.NumClass)
@@ -110,6 +111,6 @@ class Solver(object):
                 # val_output = torch.max(model(Variable(torch.from_numpy(val_loader.dataset.X))), dim= 1)
                 # val_accuracy = self.accuracy(val_output[1], Variable(torch.from_numpy(val_loader.dataset.y)))
                 # self.val_acc_history.append(val_accuracy)
-            print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : ' + str(loss.data[0]))
+            print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : ' + str(loss.data.item()))
             model.save('models/' + exp_dir_name + '/quicknat_epoch' + str(epoch + 1) + '.model')
         print('FINISH.')
