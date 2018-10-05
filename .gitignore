@@ -5,3 +5,7 @@
 **/.__pycache__
 models/dev_test
 models/dev_test/*
+build
+build/*
+quickNAT_pytorch.egg-info
+quickNAT_pytorch.egg-info/*
