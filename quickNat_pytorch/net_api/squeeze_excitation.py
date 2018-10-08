@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from enum import Enum, auto
 
 class ChannelSELayer(nn.Module):
     """
@@ -76,3 +76,9 @@ class ChannelSpatialSELayer(nn.Module):
     def forward(self, input_tensor):
         output_tensor = torch.max(self.cSE(input_tensor), self.sSE(input_tensor))
         return output_tensor
+    
+class SELayer(Enum):
+    NONE = auto()
+    CSE = auto()
+    SSE = auto()
+    CSSE = auto()

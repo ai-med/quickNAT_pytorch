@@ -14,16 +14,23 @@ class DenseBlock(nn.Module):
         'pool':2,
         'stride_pool':2,
         'num_classes':28,
-        'se_block':False,
+        'se_block': se.SELayer.None,
         'drop_out':0,2
     }
     '''
 
     def __init__(self, params):
         super(DenseBlock, self).__init__()
-        if  params['se_block']:
-            self.se_block = params['se_block']
-            self.channelSELayer = se.ChannelSpatialSELayer(params['num_filters'])
+        self.se_block_type = params['se_block']
+        
+        if  self.se_block_type == se.SELayer.CSE:
+            self.SELayer = se.ChannelSpatialSELayer(params['num_filters'])
+            
+        elif self.se_block_type == se.SELayer.SSE:
+            self.SELayer = se.SpatialSELayer(params['num_filters'])
+            
+        elif self.se_block_type == se.SELayer.CSSE:
+            self.SELayer = se.ChannelSpatialSELayer(params['num_filters'])
             
         padding_h = int((params['kernel_h'] - 1) / 2)
         padding_w = int((params['kernel_w'] - 1) / 2)
@@ -76,8 +83,9 @@ class EncoderBlock(DenseBlock):
 
     def forward(self, input):
         out_block = super(EncoderBlock, self).forward(input)
-        if hasattr(self, 'se_block') and self.se_block:
-            out_block = self.channelSELayer(out_block)
+        if self.se_block_type is not se.SELayer.NONE:
+            out_block = self.SELayer(out_block)
+            
         if self.drop_out_needed:
             out_block = self.drop_out(out_block)
             
@@ -94,8 +102,9 @@ class DecoderBlock(DenseBlock):
         unpool = self.unpool(input, indices)
         concat = torch.cat((out_block, unpool), dim=1)
         out_block = super(DecoderBlock, self).forward(concat)
-        if hasattr(self, 'se_block') and self.se_block:
-            out_block = self.channelSELayer(out_block)
+        
+        if self.se_block_type is not se.SELayer.NONE:
+            out_block = self.SELayer(out_block)
             
         if self.drop_out_needed:
             out_block = self.drop_out(out_block)            
