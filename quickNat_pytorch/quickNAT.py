@@ -18,6 +18,8 @@ class quickNAT(nn.Module):
         'pool':2,
         'stride_pool':2,
         'num_classes':28
+        'se_block': False,
+        'drop_out':0.2
     }
 
     """
@@ -56,6 +58,13 @@ class quickNAT(nn.Module):
 
         return prob
 
+    def enable_test_dropout(self):
+        attr_dict = self.__dict__['_modules']
+        for i in range(1,5):
+            encode_block, decode_block = attr_dict['encode'+str(i)], attr_dict['decode'+str(i)]
+            encode_block.drop_out = encode_block.drop_out.apply(nn.Module.train)
+            decode_block.drop_out = decode_block.drop_out.apply(nn.Module.train)
+            
     @property
     def is_cuda(self):
         """
