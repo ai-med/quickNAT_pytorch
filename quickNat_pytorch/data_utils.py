@@ -1,10 +1,9 @@
 """
 Data utility functions.
-Sample command to create new dataset - python quickNat_pytorch/data_utils.py -dd /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge/FS -ld /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge -trv datasets/train_volumes.txt -tev datasets/test_volumes.txt -rc Neo -o COR -df datasets
+Sample command to create new dataset - python quickNat_pytorch/data_utils.py -dd /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge/FS -ld /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge -trv datasets/train_volumes.txt -tev datasets/test_volumes.txt -rc Neo -o COR -df datasets/coronal
 """
 
 import os
-
 import numpy as np
 import torch
 import torch.utils.data as data
@@ -15,9 +14,9 @@ import nibabel as nb
 
 class ImdbData(data.Dataset):
     def __init__(self, X, y, w):
-        self.X = X
-        self.y = y
-        self.w = w
+        self.X = X if len(X.shape) == 4 else X[:,np.newaxis,:,:]
+        self.y = y 
+        self.w = w 
 
     def __getitem__(self, index):
         img = torch.from_numpy(self.X[index])
@@ -150,24 +149,26 @@ if __name__=="__main__":
     data_train, label_train, class_weights_train, weights_train = _convertToHd5(args.data_dir, args.label_dir, args.train_volumes, args.remap_config, args.orientation)
     data_test, label_test, class_weights_test,  weights_test = _convertToHd5(args.data_dir, args.label_dir, args.test_volumes, args.remap_config, args.orientation)
         
+    if args.destination_folder and not os.path.exists(args.destination_folder):
+        os.makedirs(args.destination_folder)
+        
     DESTINATION_FOLDER = args.destination_folder if args.destination_folder else ""
     
     DATA_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Data_train.h5")
     LABEL_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Label_train.h5")
-    WEIGHTS_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Weight_train.h5")     
-    CLASS_WEIGHTS_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Class_Weight_train.h5")      
-    DATA_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Data_test.h5") 
+    WEIGHTS_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Weight_train.h5")
+    CLASS_WEIGHTS_TRAIN_FILE = os.path.join(DESTINATION_FOLDER, "Class_Weight_train.h5")
+    DATA_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Data_test.h5")
     LABEL_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Label_test.h5")
-    WEIGHTS_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Weight_test.h5")    
-    CLASS_WEIGHTS_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Class_Weight_test.h5")        
+    WEIGHTS_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Weight_test.h5")
+    CLASS_WEIGHTS_TEST_FILE = os.path.join(DESTINATION_FOLDER, "Class_Weight_test.h5")
     
     with h5py.File(DATA_TRAIN_FILE,"w") as data_train_handle, h5py.File(LABEL_TRAIN_FILE,"w") as label_train_handle, h5py.File(WEIGHTS_TRAIN_FILE,"w") as weights_train_handle,h5py.File(CLASS_WEIGHTS_TRAIN_FILE,"w") as class_weights_train_handle, h5py.File(DATA_TEST_FILE,"w") as data_test_handle, h5py.File(LABEL_TEST_FILE,"w") as label_test_handle, h5py.File(WEIGHTS_TEST_FILE,"w") as weights_test_handle, h5py.File(CLASS_WEIGHTS_TEST_FILE,"w") as class_weights_test_handle:
         data_train_handle.create_dataset("OASIS_data_train", data = data_train)
         label_train_handle.create_dataset("OASIS_label_train", data = label_train)
-        class_weights_train_handle.create_dataset("OASIS_class_weights_train", data = class_weights_train)                
-        weights_train_handle.create_dataset("OASIS_weights_train", data = weights_train)        
+        class_weights_train_handle.create_dataset("OASIS_class_weights_train", data = class_weights_train)
+        weights_train_handle.create_dataset("OASIS_weights_train", data = weights_train)
         data_test_handle.create_dataset("OASIS_data_test", data = data_test)
         label_test_handle.create_dataset("OASIS_label_test", data = label_test)
-        class_weights_test_handle.create_dataset("OASIS_class_weights_test", data = class_weights_test)         
-        weights_test_handle.create_dataset("OASIS_weights_test", data = weights_test)                
-               
+        class_weights_test_handle.create_dataset("OASIS_class_weights_test", data = class_weights_test)
+        weights_test_handle.create_dataset("OASIS_weights_test", data = weights_test)

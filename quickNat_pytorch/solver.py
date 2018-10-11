@@ -70,6 +70,8 @@ class Solver(object):
         optim = self.optim(model.parameters(), **self.optim_args)
         scheduler = lr_scheduler.StepLR(optim, step_size=self.step_size,
                                         gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
+        
+        dtype = torch.FloatTensor
 
         self._reset_histories()
         iter_per_epoch = 1
@@ -86,9 +88,9 @@ class Solver(object):
         for epoch in range(num_epochs):
             scheduler.step()
             for i_batch, sample_batched in enumerate(train_loader):
-                X = Variable(sample_batched[0])
-                y = Variable(sample_batched[1])
-                w = Variable(sample_batched[2])
+                X = Variable(sample_batched[0].type(dtype))
+                y = Variable(sample_batched[1].type(dtype))
+                w = Variable(sample_batched[2].type(dtype))
 
                 if model.is_cuda:
                     X, y, w = X.cuda(), y.cuda(),  w.cuda()
