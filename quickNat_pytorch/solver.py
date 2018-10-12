@@ -4,6 +4,7 @@ import torch
 from torch.autograd import Variable
 from quickNat_pytorch.net_api.losses import CombinedLoss
 from torch.optim import lr_scheduler
+from tensorboardX import SummaryWriter
 import os
 
 
@@ -20,11 +21,9 @@ def per_class_dice(y_pred, y_true, num_class):
         avg_dice = avg_dice + (t / num_class)
     return avg_dice
 
-
-def create_exp_directory(exp_dir_name):
-    if not os.path.exists('models/' + exp_dir_name):
-        os.makedirs('models/' + exp_dir_name)
-
+def _create_exp_directory(exp_dir_name):
+        if not os.path.exists('models/' + exp_dir_name):
+            os.makedirs('models/' + exp_dir_name)
 
 class Solver(object):
     # global optimiser parameters
@@ -43,17 +42,21 @@ class Solver(object):
         self.optim_args = optim_args_merged
         self.optim = optim
         self.loss_func = loss_func
-
-        self._reset_histories()
-
+        self.logs = {
+            'train_loss': [],
+            'val_loss': [],
+            'train_acc': [],
+            'val_acc':[]
+        }
+        self.train_writer = SummaryWriter("logs/train")
+        self.val_writer = SummaryWriter("logs/val")        
+        
     def _reset_histories(self):
         """
         Resets train and val histories for the accuracy and the loss.
         """
-        self.train_loss_history = []
-        self.train_acc_history = []
-        self.val_acc_history = []
-        self.val_loss_history = []
+        self.logs = {key: [] for key, val in self.logs.items()}
+
 
     def train(self, model, train_loader, val_loader, num_epochs=10, log_nth=5, exp_dir_name='exp_default'):
         """
@@ -64,53 +67,66 @@ class Solver(object):
         - train_loader: train data in torch.utils.data.DataLoader
         - val_loader: val data in torch.utils.data.DataLoader
         - num_epochs: total number of training epochs
-        - log_nth: log training accuracy and loss every nth iteration
+        - log_nth: log training accuracy and loss every nth iteration(mini batch)
         """
 
+        dtype = torch.FloatTensor
         optim = self.optim(model.parameters(), **self.optim_args)
-        scheduler = lr_scheduler.StepLR(optim, step_size=self.step_size,
-                                        gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
-
+        scheduler = lr_scheduler.StepLR(optim, step_size=self.step_size,gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
+        dataloaders = {
+            'train': train_loader,
+            'val': val_loader
+        }
+        
+    
+        _create_exp_directory(exp_dir_name)
         self._reset_histories()
-        iter_per_epoch = 1
-        # iter_per_epoch = len(train_loader)
+        
 
         if torch.cuda.is_available():
             model.cuda()
 
         print('START TRAIN.')
-        curr_iter = 0
+        curr_iteration = 0
+        for epoch in range(1, num_epochs+1):
+            val_loss = []
+            for phase in ['train', 'val']:
+                if phase == 'train':
+                    scheduler.step()
+                    model.train()
+                    was_training = True
+                else:
+                    model.eval()
+                    was_training = False
+                for i_batch, sample_batched in enumerate(dataloaders[phase]):
+                    X = Variable(sample_batched[0].type(dtype))
+                    y = Variable(sample_batched[1].type(dtype))
+                    w = Variable(sample_batched[2].type(dtype))
+                    
+                    curr_iteration+=1
 
-        create_exp_directory(exp_dir_name)
+                    if model.is_cuda:
+                        X, y, w = X.cuda(), y.cuda(),  w.cuda()
 
-        for epoch in range(num_epochs):
-            scheduler.step()
-            for i_batch, sample_batched in enumerate(train_loader):
-                X = Variable(sample_batched[0])
-                y = Variable(sample_batched[1])
-                w = Variable(sample_batched[2])
-
-                if model.is_cuda:
-                    X, y, w = X.cuda(), y.cuda(),  w.cuda()
-
-                for iter in range(iter_per_epoch):
-                    curr_iter += iter
                     optim.zero_grad()
                     output = model(X)
                     loss = self.loss_func(output, y, w)
-                    loss.backward()
-                    optim.step()
-                if (i_batch % 50 == 0):
-                    print('[Iteration : ' + str(i_batch) + '] : ' + str(loss.data.item()))
-
-                _, batch_output = torch.max(model(X), dim=1)
-                #avg_dice = per_class_dice(batch_output, y, self.NumClass)
-                #print('Per class average dice score is ' + str(avg_dice))
-                # self.train_acc_history.append(train_accuracy)
-                #
-                # val_output = torch.max(model(Variable(torch.from_numpy(val_loader.dataset.X))), dim= 1)
-                # val_accuracy = self.accuracy(val_output[1], Variable(torch.from_numpy(val_loader.dataset.y)))
-                # self.val_acc_history.append(val_accuracy)
-            print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : ' + str(loss.data.item()))
+                    _, batch_output = torch.max(output, dim=1)
+                    if phase == 'train':
+                        loss.backward()
+                        optim.step()
+                        if (curr_iteration % log_nth == 0):
+                            print('train : [iteration : ' + str(curr_iteration) + '] : ' + str(loss.data.item()))
+                            self.train_writer.add_scalar('loss/per_iteration', loss.data.item(), curr_iteration)
+                    else:
+                        val_loss.append(loss.data.item())
+                if was_training:
+                    self.logs['train_loss'].append(loss.data.item())
+                else:
+                    self.logs['val_loss'].append(np.mean(val_loss))
+                    
+            self.train_writer.add_scalar('loss/per_epoch', self.logs['train_loss'][-1], epoch)
+            self.val_writer.add_scalar('loss/per_epoch', self.logs['val_loss'][-1], epoch)
+            print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : train loss = ' + str(self.logs['train_loss'][-1]) + ', val loss = ' + str(self.logs['val_loss'][-1]))
             model.save('models/' + exp_dir_name + '/quicknat_epoch' + str(epoch + 1) + '.model')
         print('FINISH.')

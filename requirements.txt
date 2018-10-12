@@ -1,2 +1,5 @@
 torch
 torchvision
+nibabel
+tensorboardX
+tensorflow

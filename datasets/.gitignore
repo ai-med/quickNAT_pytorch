@@ -2,3 +2,4 @@
 /segmentation_data
 /segmentation_data_test
 seg.py
+*.h5
