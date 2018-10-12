@@ -6,6 +6,7 @@ from quickNat_pytorch.net_api.losses import CombinedLoss
 from torch.optim import lr_scheduler
 from tensorboardX import SummaryWriter
 import os
+from quickNat_pytorch.log_utils import LogWriter
 
 
 def per_class_dice(y_pred, y_true, num_class):
@@ -31,10 +32,7 @@ class Solver(object):
                           "betas": (0.9, 0.999),
                           "eps": 1e-8,
                           "weight_decay": 0.0001}
-    gamma = 0.5
-    step_size = 5
-    NumClass = 28
-
+    
     def __init__(self, optim=torch.optim.Adam, optim_args={},
                  loss_func=CombinedLoss()):
         optim_args_merged = self.default_optim_args.copy()
@@ -48,8 +46,7 @@ class Solver(object):
             'train_acc': [],
             'val_acc':[]
         }
-        self.train_writer = SummaryWriter("logs/train")
-        self.val_writer = SummaryWriter("logs/val")        
+        self.logWriter = LogWriter()
         
     def _reset_histories(self):
         """
@@ -58,7 +55,7 @@ class Solver(object):
         self.logs = {key: [] for key, val in self.logs.items()}
 
 
-    def train(self, model, train_loader, val_loader, num_epochs=10, log_nth=5, exp_dir_name='exp_default'):
+    def train(self, model, train_loader, val_loader, num_epochs=10, log_nth=5, exp_dir_name='exp_default', lr_scheduler_step_size = 5, lr_scheduler_gamma = 0.5):
         """
         Train a given model with the provided data.
 
@@ -72,7 +69,7 @@ class Solver(object):
 
         dtype = torch.FloatTensor
         optim = self.optim(model.parameters(), **self.optim_args)
-        scheduler = lr_scheduler.StepLR(optim, step_size=self.step_size,gamma=self.gamma)  # decay LR by a factor of 0.5 every 5 epochs
+        scheduler = lr_scheduler.StepLR(optim, step_size=lr_scheduler_step_size,gamma=lr_scheduler_gamma)  # decay LR by a factor of 0.5 every 5 epochs
         dataloaders = {
             'train': train_loader,
             'val': val_loader
@@ -81,7 +78,6 @@ class Solver(object):
     
         _create_exp_directory(exp_dir_name)
         self._reset_histories()
-        
 
         if torch.cuda.is_available():
             model.cuda()
@@ -116,17 +112,15 @@ class Solver(object):
                         loss.backward()
                         optim.step()
                         if (curr_iteration % log_nth == 0):
-                            print('train : [iteration : ' + str(curr_iteration) + '] : ' + str(loss.data.item()))
-                            self.train_writer.add_scalar('loss/per_iteration', loss.data.item(), curr_iteration)
+                            self.logWriter.loss_per_iter(loss.data.item(), curr_iteration)
+                            
                     else:
                         val_loss.append(loss.data.item())
                 if was_training:
                     self.logs['train_loss'].append(loss.data.item())
                 else:
                     self.logs['val_loss'].append(np.mean(val_loss))
-                    
-            self.train_writer.add_scalar('loss/per_epoch', self.logs['train_loss'][-1], epoch)
-            self.val_writer.add_scalar('loss/per_epoch', self.logs['val_loss'][-1], epoch)
-            print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : train loss = ' + str(self.logs['train_loss'][-1]) + ', val loss = ' + str(self.logs['val_loss'][-1]))
+            
+            self.logWriter.loss_per_epoch(self.logs['train_loss'][-1],self.logs['val_loss'][-1], epoch)
             model.save('models/' + exp_dir_name + '/quicknat_epoch' + str(epoch + 1) + '.model')
         print('FINISH.')
