@@ -34,7 +34,8 @@ class Solver(object):
                           "weight_decay": 0.0001}
     
     def __init__(self, optim=torch.optim.Adam, optim_args={},
-                 loss_func=CombinedLoss()):
+                 loss_func=CombinedLoss(),
+                 labels = None):
         optim_args_merged = self.default_optim_args.copy()
         optim_args_merged.update(optim_args)
         self.optim_args = optim_args_merged
@@ -46,7 +47,8 @@ class Solver(object):
             'train_acc': [],
             'val_acc':[]
         }
-        self.logWriter = LogWriter()
+        self.labels=labels
+        self.logWriter = LogWriter(len(labels))
         
     def _reset_histories(self):
         """
@@ -113,14 +115,24 @@ class Solver(object):
                         optim.step()
                         if (curr_iteration % log_nth == 0):
                             self.logWriter.loss_per_iter(loss.data.item(), curr_iteration)
-                            
                     else:
                         val_loss.append(loss.data.item())
+                        
+                    with torch.no_grad():
+                        self.logWriter.update_cm_per_iter(model(X).data.squeeze(), y.type(torch.LongTensor), self.labels, phase)
+                    
                 if was_training:
                     self.logs['train_loss'].append(loss.data.item())
                 else:
                     self.logs['val_loss'].append(np.mean(val_loss))
+                with torch.no_grad():    
+                    self.logWriter.cm_per_epoch(self.labels, phase, epoch, curr_iteration)
+                    self.logWriter.reset_cms()
+                    
+            self.logWriter.loss_per_epoch(self.logs['train_loss'][-1],self.logs['val_loss'][-1], epoch, num_epochs)
             
-            self.logWriter.loss_per_epoch(self.logs['train_loss'][-1],self.logs['val_loss'][-1], epoch)
+            
+            
             model.save('models/' + exp_dir_name + '/quicknat_epoch' + str(epoch + 1) + '.model')
         print('FINISH.')
+        self.logWriter.close()

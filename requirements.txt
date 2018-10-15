@@ -3,3 +3,4 @@ torchvision
 nibabel
 tensorboardX
 tensorflow
+torchnet
