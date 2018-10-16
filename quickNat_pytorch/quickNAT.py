@@ -1,7 +1,9 @@
 """ClassificationCNN"""
 import torch
 import torch.nn as nn
+import numpy as np
 from quickNat_pytorch.net_api import sub_module as sm
+from torch.autograd import Variable
 
 
 class quickNAT(nn.Module):
@@ -82,3 +84,28 @@ class quickNAT(nn.Module):
         """
         print('Saving model... %s' % path)
         torch.save(self, path)
+
+    def predict(self, X, enable_dropout = False):
+        """
+        Predicts the outout after the model is trained.
+        Inputs:
+        - X: Volume to be predicted
+        """        
+        self.eval()
+        torch.no_grad()
+        if type(X) is np.ndarray:
+            X = Variable(torch.Tensor(X).cuda())
+        elif type(X) is torch.Tensor and not X.is_cuda:
+            X = X.cuda()
+
+        if enable_dropout:
+            self.enable_test_dropout()
+            
+        out = self.forward(X)
+        max_val, idx = torch.max(out,1)
+        idx = idx.data.cpu().numpy()
+        idx = np.squeeze(idx)
+        return idx
+    
+    
+    
