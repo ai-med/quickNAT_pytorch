@@ -94,7 +94,7 @@ def _remap_labels(labels, remap_config):
     
     return new_labels
         
-def _select_slices(data, labels, skip_Frame = 40):
+def _reduce_slices(data, labels, skip_Frame = 40):
     """
     This function removes the useless black slices from the start and end. And then selects every even numbered frame.
     """
@@ -105,10 +105,20 @@ def _select_slices(data, labels, skip_Frame = 40):
 
     data_reduced = np.compress(mask_vector, data, axis = 0).reshape(-1 , H, W)
     labels_reduced = np.compress(mask_vector, labels, axis = 0).reshape(-1 , H, W)    
-
+    
     return data_reduced, labels_reduced
 
 
+def _remove_black(data, labels, background_label):
+    clean_data, clean_labels = [], []
+    for i, frame in enumerate(labels):
+        unique, counts = np.unique(frame, return_counts=True)
+        idx = np.where(unique == background_label)[0][0]
+        if counts[idx] / sum(counts) < .9:
+            clean_labels.append(frame)
+            clean_data.append(data[i])
+    return np.array(clean_data), np.array(clean_labels)
+            
     
 def _convertToHd5(data_dir, label_dir, volumes_txt_file , remap_config, orientation=ORIENTATION['coronal']):
     """
@@ -124,15 +134,21 @@ def _convertToHd5(data_dir, label_dir, volumes_txt_file , remap_config, orientat
         volume_data, volume_label = nb.load(file_path[0]).get_fdata(), nb.load(file_path[1]).get_fdata()
         volume_data, volume_label = _rotate_orientation(volume_data, volume_label, orientation)
         volume_data = (volume_data - np.min(volume_data)) / (np.max(volume_data) - np.min(volume_data))
-        data, labels = _select_slices(volume_data, volume_label)
+        
+        data, labels = _reduce_slices(volume_data, volume_label)
+        
         labels = _remap_labels(labels, remap_config)
+        
+        data, labels = _remove_black(data, labels, 0)
+        
         class_weights, weights = _estimate_weights_mfb(labels)
         data_h5.append(data)
         label_h5.append(labels)
         class_weights_h5.append(class_weights)
         weights_h5.append(weights)
-    no_slices, H, W = np.array(data_h5)[0].shape
-    return np.array(data_h5).reshape((-1, H, W)), np.array(label_h5).reshape((-1, H, W)), np.array(class_weights_h5).reshape((-1, H, W)), np.array(weights_h5)
+        
+    no_slices, H, W = data_h5[0].shape
+    return np.concatenate(data_h5).reshape((-1, H, W)), np.concatenate(label_h5).reshape((-1, H, W)), np.concatenate(class_weights_h5).reshape((-1, H, W)), np.concatenate(weights_h5)
     
 
 if __name__=="__main__":

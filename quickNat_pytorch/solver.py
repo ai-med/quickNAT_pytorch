@@ -34,6 +34,7 @@ class Solver(object):
                           "weight_decay": 0.0001}
     
     def __init__(self, 
+                 num_class,
                  optim=torch.optim.Adam, 
                  optim_args={},
                  loss_func=CombinedLoss(),
@@ -52,7 +53,7 @@ class Solver(object):
         }
         self.model_name=model_name
         self.labels=labels
-        self.logWriter = LogWriter(len(labels))
+        self.logWriter = LogWriter(num_class)
         
     def _reset_histories(self):
         """
@@ -63,7 +64,6 @@ class Solver(object):
         
     def load_last_checkpoint_file(self, experiment_directory):
         epochs_done = [int(re.findall(r'\d+', filename)[0]) for filename in os.listdir(os.path.join('models', experiment_directory)) if 'epoch' in filename]
-        print('epochs_done', epochs_done)
         last_model, last_epoch = None, 0
         if len(epochs_done) > 0:
             last_epoch = max(epochs_done)
@@ -136,7 +136,6 @@ class Solver(object):
                     optim.zero_grad()
                     output = model(X)
                     loss = self.loss_func(output, y, w)
-                    _, batch_output = torch.max(output, dim=1)
                     if phase == 'train':
                         loss.backward()
                         optim.step()
@@ -146,21 +145,18 @@ class Solver(object):
                         val_loss.append(loss.data.item())
                         
                     with torch.no_grad():
-                        self.logWriter.update_cm_per_iter(model(X).data.squeeze(), y.type(torch.LongTensor), self.labels, phase)
+                        self.logWriter.update_cm_per_iter(model.predict(X), y.data.cpu().numpy(), self.labels, phase)
                     
                 if was_training:
                     self.logs['train_loss'].append(loss.data.item())
                 else:
                     self.logs['val_loss'].append(np.mean(val_loss))
-                with torch.no_grad():    
+                with torch.no_grad():
+                    self.logWriter.image_per_epoch(model.predict(X[0:1]), y[0].data.cpu().numpy(), phase, epoch)
                     self.logWriter.cm_per_epoch(self.labels, phase, epoch, curr_iteration)
-                    self.logWriter.image_per_epoch(model(X[0:1]), y[0].type(torch.LongTensor), phase, epoch)
                     self.logWriter.reset_cms()
                     
-            self.logWriter.loss_per_epoch(self.logs['train_loss'][-1],self.logs['val_loss'][-1], epoch, num_epochs)
-            
-            
-            
+            self.logWriter.loss_per_epoch(self.logs['train_loss'][-1],self.logs['val_loss'][-1], epoch, num_epochs)    
             model.save('models/' + exp_dir_name + '/quicknat_epoch' + str(epoch) + '.model')
         print('FINISH.')
         self.logWriter.close()

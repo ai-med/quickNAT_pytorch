@@ -6,21 +6,22 @@ import re
 from textwrap import wrap
 from sklearn.metrics import confusion_matrix
 import itertools
-import torchnet as tnt
 import torch
+import threading
 
 plt.switch_backend('agg')
 plt.axis('scaled')
 
 class LogWriter:
-    def __init__(self, num_classes= 33, cm_cmap = plt.cm.Blues, cm_normalized= True):
+    def __init__(self, num_class, cm_cmap = plt.cm.Blues, cm_normalized= True):
         self.train_writer = SummaryWriter("logs/train")
         self.val_writer = SummaryWriter("logs/val")
         self.cm_cmap = cm_cmap
+        self.num_class=num_class
         self.cm_normalized = cm_normalized
         self._cm = {
-            'train': tnt.meter.ConfusionMeter(num_classes, normalized=cm_normalized),
-            'val': tnt.meter.ConfusionMeter(num_classes, normalized=cm_normalized)
+            'train': [],
+            'val': []
         }
         self.fig = plt.figure() #For confusion matrix
 
@@ -38,20 +39,15 @@ class LogWriter:
         self.val_writer.close()
         
     def update_cm_per_iter(self, predicted_labels, correct_labels, labels, phase):
-        batch_size, num_classes, H, W = predicted_labels.size()
-        predicted_labels = predicted_labels.view(-1, num_classes)
-        correct_labels= correct_labels.view(-1)
-        self._cm[phase].add(predicted_labels, correct_labels)
+        self._cm[phase].append(confusion_matrix(correct_labels.flatten(), predicted_labels.flatten(), range(self.num_class)))
+        
     
-    def image_per_epoch(self, prediction, groud_truth, phase, epoch):
-        max_val, idx = torch.max(prediction,1)
-        idx = idx.data.cpu().numpy()
-        idx = np.squeeze(idx)
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(20,20))
-        ax[0].imshow(idx)
+    def image_per_epoch(self, prediction, ground_truth, phase, epoch):
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 10))
+        ax[0].imshow(prediction, cmap = 'jet', vmin=0, vmax=self.num_class-1)
         ax[0].set_title("Predicted", fontsize=10, color = "blue")
         ax[0].axis('off')
-        ax[1].imshow(groud_truth)
+        ax[1].imshow(ground_truth, cmap = 'jet', vmin=0, vmax=self.num_class-1)
         ax[1].set_title("Ground Truth", fontsize=10, color = "blue")
         ax[1].axis('off')
         
@@ -61,11 +57,15 @@ class LogWriter:
             self.val_writer.add_figure('sample_prediction/' + phase, fig, epoch)
             
     def reset_cms(self):
-        for key, item in self._cm.items():
-            item.reset()
+        self._cm = {key : [] for key, item in self._cm.items()}
+
         
     def cm_per_epoch(self, labels, phase, epoch, iteration):
-        cm = self._cm[phase].value()
+        cm = np.mean(self._cm[phase], axis = 0)
+        print("CM Shape : ", cm.shape)
+        
+        if self.cm_normalized:
+            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
        
         fig = matplotlib.figure.Figure(figsize=(10, 10), dpi=360, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(1, 1, 1)
