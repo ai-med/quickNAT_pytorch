@@ -9,7 +9,7 @@ from torch.autograd import Variable
 class quickNAT(nn.Module):
     """
     A PyTorch implementation of QuickNAT
-    Coded by Abhijit
+    Coded by Abhijit and Shayan
 
     param ={
         'num_channels':1,
@@ -32,7 +32,6 @@ class quickNAT(nn.Module):
         self.encode1 = sm.EncoderBlock(params)
         params['num_channels'] = 64
         self.encode2 = sm.EncoderBlock(params)
-        # params['num_channels'] = 64  # This can be used to change the numchannels for each block
         self.encode3 = sm.EncoderBlock(params)
         self.encode4 = sm.EncoderBlock(params)
         self.bottleneck = sm.DenseBlock(params)
@@ -92,20 +91,23 @@ class quickNAT(nn.Module):
         - X: Volume to be predicted
         """        
         self.eval()
-        torch.no_grad()
+
         if type(X) is np.ndarray:
-            X = Variable(torch.Tensor(X).cuda())
+            X = torch.tensor(X, requires_grad = False).cuda(non_blocking=True)
         elif type(X) is torch.Tensor and not X.is_cuda:
-            X = X.cuda()
+            X = X.cuda(non_blocking=True)
 
         if enable_dropout:
             self.enable_test_dropout()
             
-        out = self.forward(X)
+        with torch.no_grad():         
+            out = self.forward(X)
+            
         max_val, idx = torch.max(out,1)
         idx = idx.data.cpu().numpy()
-        idx = np.squeeze(idx)
-        return idx
+        prediction = np.squeeze(idx)
+        del X, out, idx, max_val
+        return prediction
     
     
     
