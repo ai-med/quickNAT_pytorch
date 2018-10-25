@@ -47,9 +47,17 @@ class LogWriter(object):
             loss = np.mean(loss_arr)
         self.writer[phase].add_scalar('loss/per_epoch', loss, epoch)            
         print('epoch '+phase + ' loss = ' + str(loss))
-    
-    def graph(self, model, X):
-        self.writer['train'].add_graph(model, X)                    
+       
+    def update_cm_per_iter(self, predictions, correct_labels, phase): 
+        _, batch_output = torch.max(predictions, dim=1)
+        _, cm_batch = eu.dice_confusion_matrix(batch_output, correct_labels, self.num_class)
+        self._cm[phase]+=cm_batch.cpu()
+        del cm_batch, batch_output       
+            
+    def cm_per_epoch(self, phase, epoch, i_batch):
+        cm = (self._cm[phase] / (i_batch + 1)).cpu().numpy()
+        plot_cm('confusion_matrix', phase, cm, epoch)
+        self.init_cm()        
         
     def update_dice_score_per_iteration(self, predictions, correct_labels, epoch):
         _, batch_output = torch.max(predictions, dim=1)
@@ -59,7 +67,7 @@ class LogWriter(object):
     def dice_score_per_epoch(self, epoch, i_batch):
         ds = (self._ds / (i_batch + 1)).cpu().numpy()
         plot_dice_score(self,'dice_score_per_epoch', ds, 'Dice Score', epoch)      
-        self.init_ds()
+        self.init_ds() 
         
     def plot_dice_score(self, caption, ds, title, step=None):
         tick_marks = np.arange(self.num_class)
@@ -75,46 +83,7 @@ class LogWriter(object):
             self.writer['val'].add_figure(caption, fig, step)
         else:
             self.writer['val'].add_figure(caption, fig)
-        
-    def update_cm_per_iter(self, predictions, correct_labels, phase): 
-        _, batch_output = torch.max(predictions, dim=1)
-        _, cm_batch = eu.dice_confusion_matrix(batch_output, correct_labels, self.num_class)
-        self._cm[phase]+=cm_batch.cpu()
-        del cm_batch, batch_output
-        
-    def cm_per_epoch(self, phase, epoch, i_batch):
-        cm = (self._cm[phase] / (i_batch + 1)).cpu().numpy()
-         
-        fig = matplotlib.figure.Figure(figsize=(7, 7), dpi=180, facecolor='w', edgecolor='k')
-        ax = fig.add_subplot(1, 1, 1)
-        
-        classes = [re.sub(r'([a-z](?=[A-Z])|[A-Z](?=[A-Z][a-z]))', r'\1 ', x) for x in self.labels]
-        classes = ['\n'.join(wrap(l, 40)) for l in classes]
 
-        tick_marks = np.arange(len(classes))
-        
-        ax.imshow(cm, interpolation = 'nearest', cmap=self.cm_cmap)
-        ax.set_xlabel('Predicted', fontsize=7)        
-        ax.set_xticks(tick_marks)
-        c = ax.set_xticklabels(classes, fontsize=4, rotation=-90,  ha='center')
-        ax.xaxis.set_label_position('bottom')
-        ax.xaxis.tick_bottom()
-
-        ax.set_ylabel('True Label', fontsize=7)
-        ax.set_yticks(tick_marks)
-        ax.set_yticklabels(classes, fontsize=4, va ='center')
-        ax.yaxis.set_label_position('left')
-        ax.yaxis.tick_left()
-
-        thresh = cm.max() / 2.
-        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            ax.text(j, i, format(cm[i, j], '.2f') if cm[i,j]!=0 else '.', horizontalalignment="center", fontsize=6, verticalalignment='center', color= "white" if cm[i, j] > thresh else "black")
-            
-        fig.set_tight_layout(True)  
-        np.set_printoptions(precision=2)
-        self.writer[phase].add_figure('confusion_matrix/' + phase, fig, epoch)
-        self.init_cm()    
-        
     def image_per_epoch(self, prediction, ground_truth, phase, epoch):
         ncols = 2
         nrows = len(prediction)
@@ -128,7 +97,40 @@ class LogWriter(object):
             ax[i][1].set_title("Ground Truth", fontsize=10, color = "blue")
             ax[i][1].axis('off')
         fig.set_tight_layout(True)  
-        self.writer[phase].add_figure('sample_prediction/' + phase, fig, epoch) 
+        self.writer[phase].add_figure('sample_prediction/' + phase, fig, epoch)             
+        
+        
+    def plot_cm(self, caption, phase, cm, step=None):
+        fig = matplotlib.figure.Figure(figsize=(7, 7), dpi=180, facecolor='w', edgecolor='k')
+        ax = fig.add_subplot(1, 1, 1)
+                
+        ax.imshow(cm, interpolation = 'nearest', cmap=self.cm_cmap)
+        ax.set_xlabel('Predicted', fontsize=7)        
+        ax.set_xticks(tick_marks)
+        c = ax.set_xticklabels(self.labels, fontsize=4, rotation=-90,  ha='center')
+        ax.xaxis.set_label_position('bottom')
+        ax.xaxis.tick_bottom()
+
+        ax.set_ylabel('True Label', fontsize=7)
+        ax.set_yticks(np.arange(self.num_class))
+        ax.set_yticklabels(classes, fontsize=4, va ='center')
+        ax.yaxis.set_label_position('left')
+        ax.yaxis.tick_left()
+
+        thresh = cm.max() / 2.
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            ax.text(j, i, format(cm[i, j], '.2f') if cm[i,j]!=0 else '.', horizontalalignment="center", fontsize=6, verticalalignment='center', color= "white" if cm[i, j] > thresh else "black")
+            
+        fig.set_tight_layout(True)  
+        np.set_printoptions(precision=2)
+        if step:
+            self.writer[phase].add_figure(caption + '/' + phase, fig, step)
+        else:
+            self.writer[phase].add_figure(caption + '/' + phase, fig)
+            
+        
+    def graph(self, model, X):
+        self.writer['train'].add_graph(model, X) 
         
     def close(self):
         self.writer['train'].close()
