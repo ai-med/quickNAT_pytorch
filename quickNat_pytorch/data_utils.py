@@ -179,33 +179,66 @@ def _remove_black(data, labels, background_label):
             clean_data.append(data[i])
     return np.array(clean_data), np.array(clean_labels)
             
+#TODO: Need to defing a dynamic pipeline
+#TODO: Presets for training, prediction and evaluation
+def load_and_preprocess(data_dir,
+                         label_dir,
+                         volumes_txt_file,
+                         orientation,
+                         return_weights = False,
+                         reduce_slices = False,
+                         remove_black = False,
+                         remap_config = None):
     
-def _convertToHd5(data_dir, label_dir, volumes_txt_file , remap_config, orientation=ORIENTATION['coronal']):
-    """
     
-    """
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
     file_paths = [[os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol+'_glm.mgz')] for vol in volumes_to_use]
     
-    data_h5, label_h5, class_weights_h5, weights_h5 = [], [], [], []
+    volume_list, labelmap_lits, class_weights_list, weights_list = [], [], [], []
     
     for file_path in file_paths:
-        volume_data, volume_label = nb.load(file_path[0]).get_fdata(), nb.load(file_path[1]).get_fdata()
-        volume_data, volume_label = _rotate_orientation(volume_data, volume_label, orientation)
-        volume_data = (volume_data - np.min(volume_data)) / (np.max(volume_data) - np.min(volume_data))
+        volume, labelmap = nb.load(file_path[0]).get_fdata(), nb.load(file_path[1]).get_fdata()
+        volume = (volume - np.min(volume)) / (np.max(volume) - np.min(volume))
+        volume, labelmap = _rotate_orientation(volume, labelmap, orientation)        
         
-        data, labels = _reduce_slices(volume_data, volume_label)
+        if reduce_slices:
+            volume, labelmap = _reduce_slices(volume, labelmap)
         
-        labels = _remap_labels(labels, remap_config)
+        if remap_config:
+            labelmap = _remap_labels(labelmap, remap_config)
         
-        data, labels = _remove_black(data, labels, 0)
+        if remove_black:
+            volume, labelmap = _remove_black(volume, labelmap, 0)
+            
+        volume_list.append(volume)
+        labelmap_lits.append(labelmap)
         
-        class_weights, weights = _estimate_weights_mfb(labels)
-        data_h5.append(data)
-        label_h5.append(labels)
-        class_weights_h5.append(class_weights)
-        weights_h5.append(weights)
+        if return_weights:
+            class_weights, weights = _estimate_weights_mfb(labels)
+            class_weights_list.append(class_weights)
+            weights_list.append(weights)
+        
+    if return_weights:
+        return volume_list, labelmap_lits, class_weights_list, weights_list
+    else:
+        return volume_list, labelmap_lits
+    
+def _convertToHd5(data_dir, 
+                  label_dir, 
+                  volumes_txt_file, 
+                  remap_config, 
+                  orientation=ORIENTATION['coronal']):
+    """
+    
+    """
+    data_h5, label_h5, class_weights_h5, weights_h5 = load_and_preprocess(data_dir,label_dir,
+                                                                          volumes_txt_file,
+                                                                          orientation,
+                                                                          return_weights = True,
+                                                                          reduce_slices = True,
+                                                                          remove_black = True,
+                                                                          remap_config = remap_config)
         
     no_slices, H, W = data_h5[0].shape
     return np.concatenate(data_h5).reshape((-1, H, W)), np.concatenate(label_h5).reshape((-1, H, W)), np.concatenate(class_weights_h5).reshape((-1, H, W)), np.concatenate(weights_h5)

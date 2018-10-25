@@ -84,7 +84,7 @@ class quickNAT(nn.Module):
         print('Saving model... %s' % path)
         torch.save(self, path)
 
-    def predict(self, X, enable_dropout = False):
+    def predict(self, X, device = 0, enable_dropout = False):
         """
         Predicts the outout after the model is trained.
         Inputs:
@@ -93,9 +93,9 @@ class quickNAT(nn.Module):
         self.eval()
 
         if type(X) is np.ndarray:
-            X = torch.tensor(X, requires_grad = False).cuda(non_blocking=True)
+            X = torch.tensor(X, requires_grad = False).cuda(device, non_blocking=True)
         elif type(X) is torch.Tensor and not X.is_cuda:
-            X = X.cuda(non_blocking=True)
+            X = X.cuda(device, non_blocking=True)
 
         if enable_dropout:
             self.enable_test_dropout()
