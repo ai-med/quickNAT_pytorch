@@ -93,9 +93,9 @@ class quickNAT(nn.Module):
         self.eval()
 
         if type(X) is np.ndarray:
-            X = torch.tensor(X, requires_grad = False).cuda(device, non_blocking=True)
+            X = torch.tensor(X, requires_grad = False).type(torch.FloatTensor).cuda(device, non_blocking=True)
         elif type(X) is torch.Tensor and not X.is_cuda:
-            X = X.cuda(device, non_blocking=True)
+            X = X.type(torch.FloatTensor).cuda(device, non_blocking=True)
 
         if enable_dropout:
             self.enable_test_dropout()

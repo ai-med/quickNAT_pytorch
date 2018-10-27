@@ -7,19 +7,14 @@ from tensorboardX import SummaryWriter
 import os
 from quickNat_pytorch.log_utils import LogWriter
 import torch.backends.cudnn as cudnn
+import shutil
 import re
+
+CHECKPOINT_FILE_NAME = 'checkpoint.pth.tar'
 
 def _create_exp_directory(exp_dir_name):
     if not os.path.exists(os.path.join('models/', exp_dir_name)):
-        os.makedirs('models/' + exp_dir_name)
-        
-def load_last_checkpoint_file(self, experiment_directory):
-    epochs_done = [int(re.findall(r'\d+', filename)[0]) for filename in os.listdir(os.path.join('models', experiment_directory)) if 'epoch' in filename]
-    last_model, last_epoch = None, 0
-    if len(epochs_done) > 0:
-        last_epoch = max(epochs_done)
-        last_model = torch.load(os.path.join('models',experiment_directory, self.model_name +'_epoch' + str(last_epoch) + '.model'))                                    
-    return last_model, last_epoch          
+        os.makedirs('models/' + exp_dir_name)         
             
 class Solver(object):
     # global optimiser parameters
@@ -27,7 +22,6 @@ class Solver(object):
                           "betas": (0.9, 0.999),
                           "eps": 1e-8,
                           "weight_decay": 0.00001}
-    
     def __init__(self, 
                  model,
                  device,
@@ -43,7 +37,7 @@ class Solver(object):
                  log_dir_name='logs', 
                  lr_scheduler_step_size = 5, 
                  lr_scheduler_gamma = 0.5,
-                 use_last_checkpoint = False):
+                 use_last_checkpoint = True):
 
         self.device = device
         self.model = model
@@ -65,11 +59,21 @@ class Solver(object):
         
         _create_exp_directory(self.exp_dir_name)
         self.use_last_checkpoint = use_last_checkpoint
-        self.last_epoch = 0
+        self.checkpoint_path = os.path.join('models', exp_dir_name, CHECKPOINT_FILE_NAME)
+        self.start_epoch = 1
+        
         if use_last_checkpoint:
-            model, self.last_epoch = self.load_last_checkpoint_file(self.exp_dir_name)
-        
-        
+            if os.path.isfile(self.checkpoint_path):
+                print("=> loading checkpoint '{}'".format(self.checkpoint_path))
+                checkpoint = torch.load(self.checkpoint_path)
+                self.start_epoch = checkpoint['epoch']
+                self.model.load_state_dict(checkpoint['state_dict'])
+                self.optim.load_state_dict(checkpoint['optimizer'])
+                print("=> loaded checkpoint '{}' (epoch {})"
+                      .format(self.checkpoint_path, checkpoint['epoch']))
+            else:
+                print("=> no checkpoint found at '{}'".format(self.checkpoint_path))            
+            
                                     
     def train(self, train_loader, val_loader):
         """
@@ -79,8 +83,6 @@ class Solver(object):
         - train_loader: train data in torch.utils.data.DataLoader
         - val_loader: val data in torch.utils.data.DataLoader
         """
-        
-        
         model, optim, scheduler = self.model, self.optim, self.scheduler
         dataloaders = {
             'train': train_loader,
@@ -95,9 +97,10 @@ class Solver(object):
             torch.cuda.empty_cache()
             model.cuda(self.device)
 
-        print('START TRAIN.')
-        for epoch in range(self.last_epoch+1, self.num_epochs+1):
+        print('START TRAINING.')
+        for epoch in range(self.start_epoch, self.num_epochs+1):
             for phase in ['train', 'val']:
+                print("<<<= Phsse: " + phase+" =>>>")
                 loss_arr = []
                 if phase == 'train':
                     model.train()                    
@@ -107,9 +110,9 @@ class Solver(object):
                     model.eval()
                     was_training = False
                 for i_batch, sample_batched in enumerate(dataloaders[phase]):
-                    X = sample_batched[0]
+                    X = sample_batched[0].type(torch.FloatTensor)
                     y = sample_batched[1].type(torch.LongTensor)
-                    w = sample_batched[2]
+                    w = sample_batched[2].type(torch.FloatTensor)
                     
                     if model.is_cuda:
                         X, y, w = X.cuda(self.device, non_blocking=True), y.cuda(self.device, non_blocking=True),  w.cuda(self.device, non_blocking=True)
@@ -132,6 +135,8 @@ class Solver(object):
                         
                     del X, y, w, output, loss
                     torch.cuda.empty_cache()
+                    if phase == 'val':
+                        print("#", end = '')
                     
                 self.logWriter.loss_per_epoch(loss_arr, phase, epoch)
                 
@@ -142,8 +147,16 @@ class Solver(object):
                 if not was_training:
                     self.logWriter.dice_score_per_epoch(epoch, i_batch)
                 
-            print("==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] done ====")        
-            model.save('models/' + self.exp_dir_name + '/quicknat_epoch' + str(epoch) + '.model')
+            print("==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] done ====")
+            self.save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': self.model_name,
+                'state_dict': model.state_dict(),
+                'optimizer' : optim.state_dict(),
+            }, self.checkpoint_path)
             
         print('FINISH.')
         self.logWriter.close()
+    
+    def save_checkpoint(self, state, filename=CHECKPOINT_FILE_NAME):
+        torch.save(state, filename)
