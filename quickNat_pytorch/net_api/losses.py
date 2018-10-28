@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch.nn.modules.loss import _Loss
+from torch.nn.modules.loss import _Loss, _WeightedLoss
 from torch.autograd import Function, Variable
 import torch.nn as nn
 import torch.nn.functional as F
@@ -33,7 +33,7 @@ def dice_coeff(input, target):
     return s / (i + 1)
 
 
-class DiceLoss(_Loss):
+class DiceLoss(_WeightedLoss):
     def forward(self, output, target, weights=None, ignore_index=None):
         """
             output : NxCxHxW Variable
@@ -69,7 +69,7 @@ class DiceLoss(_Loss):
         return loss_per_channel.sum() / output.size(1)
 
 
-class CrossEntropyLoss2d(nn.Module):
+class CrossEntropyLoss2d(_WeightedLoss):
     def __init__(self, weight=None):
         super(CrossEntropyLoss2d, self).__init__()
         self.nll_loss = nn.CrossEntropyLoss(weight)
@@ -78,7 +78,7 @@ class CrossEntropyLoss2d(nn.Module):
         return self.nll_loss(inputs, targets)
 
 
-class CombinedLoss(nn.Module):
+class CombinedLoss(_Loss):
     def __init__(self):
         super(CombinedLoss, self).__init__()
         self.cross_entropy_loss = CrossEntropyLoss2d()
@@ -86,7 +86,7 @@ class CombinedLoss(nn.Module):
 
     def forward(self, input, target, weight):
         # TODO: why?
-        target = target.type(torch.LongTensor).cuda()
+        #target = target.type(torch.LongTensor).cuda()
         input_soft = F.softmax(input, dim = 1)
         y2 = torch.mean(self.dice_loss(input_soft, target))
         y1 = torch.mean(torch.mul(self.cross_entropy_loss.forward(input, target), weight))

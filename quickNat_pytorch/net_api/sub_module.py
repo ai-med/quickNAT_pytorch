@@ -54,7 +54,7 @@ class DenseBlock(nn.Module):
         self.batchnorm2 = nn.BatchNorm2d(num_features=conv1_out_size)
         self.batchnorm3 = nn.BatchNorm2d(num_features=conv2_out_size)
         self.prelu = nn.PReLU()
-        if params['drop_out'] > 0.0:
+        if params['drop_out'] > 0:
             self.drop_out_needed = True
             self.drop_out = nn.Dropout2d(params['drop_out'])
         else:
@@ -85,6 +85,7 @@ class EncoderBlock(DenseBlock):
         out_block = super(EncoderBlock, self).forward(input)
         if self.se_block_type is not se.SELayer.NONE:
             out_block = self.SELayer(out_block)
+            
             
         if self.drop_out_needed:
             out_block = self.drop_out(out_block)

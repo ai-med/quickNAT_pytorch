@@ -4,100 +4,154 @@ import matplotlib
 import numpy as np
 import re
 from textwrap import wrap
-from sklearn.metrics import confusion_matrix
 import itertools
-import torchnet as tnt
 import torch
+import math
+import pandas as pd
+import os
+import shutil
+import quickNat_pytorch.evaluator as eu
 
 plt.switch_backend('agg')
 plt.axis('scaled')
 
-class LogWriter:
-    def __init__(self, num_classes= 33, cm_cmap = plt.cm.Blues, cm_normalized= True):
-        self.train_writer = SummaryWriter("logs/train")
-        self.val_writer = SummaryWriter("logs/val")
-        self.cm_cmap = cm_cmap
-        self.cm_normalized = cm_normalized
-        self._cm = {
-            'train': tnt.meter.ConfusionMeter(num_classes, normalized=cm_normalized),
-            'val': tnt.meter.ConfusionMeter(num_classes, normalized=cm_normalized)
+class LogWriter(object):
+    def __init__(self, num_class, log_dir_name, exp_dir_name, use_last_checkpoint=False, labels=None, cm_cmap = plt.cm.Blues):
+        self.num_class=num_class
+        train_log_path, val_log_path = os.path.join(log_dir_name, exp_dir_name, "train"), os.path.join(log_dir_name, exp_dir_name, "val")
+        if not use_last_checkpoint:
+            if os.path.exists(train_log_path):
+                shutil.rmtree(train_log_path)
+            if os.path.exists(val_log_path):
+                shutil.rmtree(val_log_path)
+                
+        self.writer = {
+            'train' : SummaryWriter(train_log_path),
+            'val' : SummaryWriter(val_log_path)
         }
-        self.fig = plt.figure() #For confusion matrix
-
+        self.curr_iter = 1
+        self.cm_cmap = cm_cmap
+        self.init_cm()
+        self.init_ds()
+        self.labels = self.beautify_labels(labels)
+        
     def loss_per_iter(self, loss_value, i):
-        print('train : [iteration : ' + str(i) + '] : ' + str(loss_value))
-        self.train_writer.add_scalar('loss/per_iteration', loss_value, i)
+        print('[Iteration : ' + str(i) + '] Loss -> ' + str(loss_value))
+        self.writer['train'].add_scalar('loss/per_iteration', loss_value, i)
         
-    def loss_per_epoch(self, train_loss_value, val_loss_value, epoch, num_epochs):
-        self.train_writer.add_scalar('loss/per_epoch', train_loss_value, epoch)
-        self.val_writer.add_scalar('loss/per_epoch', val_loss_value, epoch)
-        print('[Epoch : ' + str(epoch) + '/' + str(num_epochs) + '] : train loss = ' + str(train_loss_value) + ', val loss = ' + str(val_loss_value))
-    
-    def close(self):
-        self.train_writer.close()
-        self.val_writer.close()
-        
-    def update_cm_per_iter(self, predicted_labels, correct_labels, labels, phase):
-        batch_size, num_classes, H, W = predicted_labels.size()
-        predicted_labels = predicted_labels.view(-1, num_classes)
-        correct_labels= correct_labels.view(-1)
-        self._cm[phase].add(predicted_labels, correct_labels)
-    
-    def image_per_epoch(self, prediction, groud_truth, phase, epoch):
-        max_val, idx = torch.max(prediction,1)
-        idx = idx.data.cpu().numpy()
-        idx = np.squeeze(idx)
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(20,20))
-        ax[0].imshow(idx)
-        ax[0].set_title("Predicted", fontsize=10, color = "blue")
-        ax[0].axis('off')
-        ax[1].imshow(groud_truth)
-        ax[1].set_title("Ground Truth", fontsize=10, color = "blue")
-        ax[1].axis('off')
-        
+    def loss_per_epoch(self, loss_arr, phase, epoch):
+        writer = self.writer[phase]
         if phase == 'train':
-            self.train_writer.add_figure('sample_prediction/' + phase, fig, epoch)
+            loss = loss_arr[-1]
         else:
-            self.val_writer.add_figure('sample_prediction/' + phase, fig, epoch)
-            
-    def reset_cms(self):
-        for key, item in self._cm.items():
-            item.reset()
-        
-    def cm_per_epoch(self, labels, phase, epoch, iteration):
-        cm = self._cm[phase].value()
+            loss = np.mean(loss_arr)
+        self.writer[phase].add_scalar('loss/per_epoch', loss, epoch)            
+        print('epoch '+phase + ' loss = ' + str(loss))
        
-        fig = matplotlib.figure.Figure(figsize=(10, 10), dpi=360, facecolor='w', edgecolor='k')
+    def update_cm_per_iter(self, predictions, correct_labels, phase): 
+        _, batch_output = torch.max(predictions, dim=1)
+        _, cm_batch = eu.dice_confusion_matrix(batch_output, correct_labels, self.num_class)
+        self._cm[phase]+=cm_batch.cpu()
+        del cm_batch, batch_output       
+            
+    def cm_per_epoch(self, phase, epoch, i_batch):
+        print("Confusion Matrix...", end='')
+        cm = (self._cm[phase] / (i_batch + 1)).cpu().numpy()
+        self.plot_cm('confusion_matrix', phase, cm, epoch)
+        self.init_cm()
+        print("DONE")
+        
+        
+    def plot_cm(self, caption, phase, cm, step=None):
+        fig = matplotlib.figure.Figure(figsize=(8, 8), dpi=180, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(1, 1, 1)
-        
-        classes = [re.sub(r'([a-z](?=[A-Z])|[A-Z](?=[A-Z][a-z]))', r'\1 ', x) for x in labels]
-        classes = ['\n'.join(wrap(l, 40)) for l in classes]
-
-        tick_marks = np.arange(len(classes))
-        
+                
         ax.imshow(cm, interpolation = 'nearest', cmap=self.cm_cmap)
         ax.set_xlabel('Predicted', fontsize=7)        
-        ax.set_xticks(tick_marks)
-        c = ax.set_xticklabels(classes, fontsize=4, rotation=-90,  ha='center')
+        ax.set_xticks(np.arange(self.num_class))
+        c = ax.set_xticklabels(self.labels, fontsize=4, rotation=-90,  ha='center')
         ax.xaxis.set_label_position('bottom')
         ax.xaxis.tick_bottom()
 
         ax.set_ylabel('True Label', fontsize=7)
-        ax.set_yticks(tick_marks)
-        ax.set_yticklabels(classes, fontsize=4, va ='center')
+        ax.set_yticks(np.arange(self.num_class))
+        ax.set_yticklabels(self.labels, fontsize=4, va ='center')
         ax.yaxis.set_label_position('left')
         ax.yaxis.tick_left()
 
-        fmt = '.2f' if self.cm_normalized else 'd'
         thresh = cm.max() / 2.
         for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            ax.text(j, i, format(cm[i, j], fmt) if cm[i,j]!=0 else '.', horizontalalignment="center", fontsize=6, verticalalignment='center', color= "white" if cm[i, j] > thresh else "black")
+            ax.text(j, i, format(cm[i, j], '.2f') if cm[i,j]!=0 else '.', horizontalalignment="center", fontsize=6, verticalalignment='center', color= "white" if cm[i, j] > thresh else "black")
             
         fig.set_tight_layout(True)  
         np.set_printoptions(precision=2)
-        if phase == 'train':
-            self.train_writer.add_figure('confusion_matrix/' + phase, fig, epoch)
+        if step:
+            self.writer[phase].add_figure(caption + '/' + phase, fig, step)
         else:
-            self.val_writer.add_figure('confusion_matrix/' + phase, fig, epoch)
+            self.writer[phase].add_figure(caption + '/' + phase, fig)
+            
+        
+    def update_dice_score_per_iteration(self, predictions, correct_labels, epoch):
+        _, batch_output = torch.max(predictions, dim=1)
+        score_vector = eu.dice_score_perclass(batch_output, correct_labels, self.num_class)
+        self._ds +=  score_vector.cpu()
+        
+    def dice_score_per_epoch(self, epoch, i_batch):
+        print("Dice Score...", end='')
+        ds = (self._ds / (i_batch + 1)).cpu().numpy()
+        self.plot_dice_score('dice_score_per_epoch', ds, 'Dice Score', epoch)      
+        self.init_ds() 
+        print("DONE")
+        
+    def plot_dice_score(self, caption, ds, title, step=None):
+        fig = matplotlib.figure.Figure(figsize=(7, 4), dpi=180, facecolor='w', edgecolor='k')
+        ax = fig.add_subplot(1, 1, 1)            
+        ax.set_xlabel(title, fontsize=10)  
+        ax.xaxis.set_label_position('top')            
+        ax.bar(np.arange(self.num_class), ds)
+        ax.set_xticks(np.arange(self.num_class))
+        c = ax.set_xticklabels(self.labels, fontsize=8, rotation=-90,  ha='center')
+        ax.xaxis.tick_bottom()
+        if step:
+            self.writer['val'].add_figure(caption, fig, step)
+        else:
+            self.writer['val'].add_figure(caption, fig)
 
+    def image_per_epoch(self, prediction, ground_truth, phase, epoch):
+        print("Sample Images...", end='')
+        ncols = 2
+        nrows = len(prediction)
+        fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 20))
+        
+        for i in range(nrows):
+            ax[i][0].imshow(prediction[i], cmap = 'CMRmap', vmin=0, vmax=self.num_class-1)
+            ax[i][0].set_title("Predicted", fontsize=10, color = "blue")
+            ax[i][0].axis('off')
+            ax[i][1].imshow(ground_truth[i], cmap = 'CMRmap', vmin=0, vmax=self.num_class-1)
+            ax[i][1].set_title("Ground Truth", fontsize=10, color = "blue")
+            ax[i][1].axis('off')
+        fig.set_tight_layout(True)  
+        self.writer[phase].add_figure('sample_prediction/' + phase, fig, epoch) 
+        print('DONE')
+        
+    def graph(self, model, X):
+        self.writer['train'].add_graph(model, X) 
+        
+    def close(self):
+        self.writer['train'].close()
+        self.writer['val'].close()
+        
+    def init_cm(self):
+        self._cm = {
+            'train': torch.zeros(self.num_class, self.num_class),
+            'val': torch.zeros(self.num_class, self.num_class)
+        }
+        
+    def init_ds(self):
+        self._ds = torch.zeros(self.num_class)
+        
+    def beautify_labels(self, labels):
+        classes = [re.sub(r'([a-z](?=[A-Z])|[A-Z](?=[A-Z][a-z]))', r'\1 ', x) for x in labels]
+        classes = ['\n'.join(wrap(l, 40)) for l in classes]
+        return classes        
         
