@@ -36,7 +36,7 @@ class LogWriter(object):
         self.labels = self.beautify_labels(labels)
         
     def loss_per_iter(self, loss_value, i):
-        print('train : [iteration : ' + str(i) + '] : ' + str(loss_value))
+        print('[Iteration : ' + str(i) + '] Loss -> ' + str(loss_value))
         self.writer['train'].add_scalar('loss/per_iteration', loss_value, i)
         
     def loss_per_epoch(self, loss_arr, phase, epoch):
@@ -124,10 +124,10 @@ class LogWriter(object):
         fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 20))
         
         for i in range(nrows):
-            ax[i][0].imshow(prediction[i], cmap = 'jet', vmin=0, vmax=self.num_class-1)
+            ax[i][0].imshow(prediction[i], cmap = 'CMRmap', vmin=0, vmax=self.num_class-1)
             ax[i][0].set_title("Predicted", fontsize=10, color = "blue")
             ax[i][0].axis('off')
-            ax[i][1].imshow(ground_truth[i], cmap = 'jet', vmin=0, vmax=self.num_class-1)
+            ax[i][1].imshow(ground_truth[i], cmap = 'CMRmap', vmin=0, vmax=self.num_class-1)
             ax[i][1].set_title("Ground Truth", fontsize=10, color = "blue")
             ax[i][1].axis('off')
         fig.set_tight_layout(True)  

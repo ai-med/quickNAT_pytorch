@@ -63,18 +63,9 @@ class Solver(object):
         self.start_epoch = 1
         
         if use_last_checkpoint:
-            if os.path.isfile(self.checkpoint_path):
-                print("=> loading checkpoint '{}'".format(self.checkpoint_path))
-                checkpoint = torch.load(self.checkpoint_path)
-                self.start_epoch = checkpoint['epoch']
-                self.model.load_state_dict(checkpoint['state_dict'])
-                self.optim.load_state_dict(checkpoint['optimizer'])
-                print("=> loaded checkpoint '{}' (epoch {})"
-                      .format(self.checkpoint_path, checkpoint['epoch']))
-            else:
-                print("=> no checkpoint found at '{}'".format(self.checkpoint_path))            
+                self.load_checkpoint()
             
-                                    
+    
     def train(self, train_loader, val_loader):
         """
         Train a given model with the provided data.
@@ -98,9 +89,11 @@ class Solver(object):
             model.cuda(self.device)
 
         print('START TRAINING.')
+        current_iteration = 0
         for epoch in range(self.start_epoch, self.num_epochs+1):
+            print("\n ==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] START====")            
             for phase in ['train', 'val']:
-                print("<<<= Phsse: " + phase+" =>>>")
+                print("<<<= Phase: " + phase+" =>>>")
                 loss_arr = []
                 if phase == 'train':
                     model.train()                    
@@ -120,11 +113,12 @@ class Solver(object):
                     output = model(X)
                     loss = self.loss_func(output, y, w)
                     if phase == 'train':
+                        current_iteration +=1
                         optim.zero_grad()                        
                         loss.backward()
                         optim.step()
                         if (i_batch % self.log_nth == 0):
-                            self.logWriter.loss_per_iter(loss.item(), i_batch)
+                            self.logWriter.loss_per_iter(loss.item(), current_iteration)
                     else:
                         self.logWriter.update_dice_score_per_iteration(output, y, epoch)
                         
@@ -136,23 +130,24 @@ class Solver(object):
                     del X, y, w, output, loss
                     torch.cuda.empty_cache()
                     if phase == 'val':
-                        print("#", end = '')
-                    
+                        if i_batch != len(dataloaders[phase]) -1:
+                            print("#", end = '')
+                        else:
+                            print("#")
                 self.logWriter.loss_per_epoch(loss_arr, phase, epoch)
-                
                 index = np.random.choice(len(dataloaders[phase].dataset.X), 3, replace=False)
-                
                 self.logWriter.image_per_epoch(model.predict(dataloaders[phase].dataset.X[index], self.device), dataloaders[phase].dataset.y[index], phase, epoch)
                 self.logWriter.cm_per_epoch(phase, epoch, i_batch)
                 if not was_training:
                     self.logWriter.dice_score_per_epoch(epoch, i_batch)
                 
-            print("==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] done ====")
+            print("==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] DONE ====")
             self.save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': self.model_name,
                 'state_dict': model.state_dict(),
                 'optimizer' : optim.state_dict(),
+                'scheduler' : scheduler.state_dict()
             }, self.checkpoint_path)
             
         print('FINISH.')
@@ -160,3 +155,21 @@ class Solver(object):
     
     def save_checkpoint(self, state, filename=CHECKPOINT_FILE_NAME):
         torch.save(state, filename)
+        
+    def load_checkpoint(self):
+        if os.path.isfile(self.checkpoint_path):
+            print("=> loading checkpoint '{}'".format(self.checkpoint_path))
+            checkpoint = torch.load(self.checkpoint_path)
+            self.start_epoch = checkpoint['epoch']
+            self.model.load_state_dict(checkpoint['state_dict'])
+            self.optim.load_state_dict(checkpoint['optimizer'])
+
+            for state in self.optim.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(self.device) 
+                        
+            self.scheduler.load_state_dict(checkpoint['scheduler'])
+            print("=> loaded checkpoint '{}' (epoch {})".format(self.checkpoint_path, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(self.checkpoint_path))        
