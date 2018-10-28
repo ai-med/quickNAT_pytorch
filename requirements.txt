@@ -4,3 +4,6 @@ nibabel
 tensorboardX
 tensorflow
 torchnet
+squeeze-and-excite
+nn-common-modules
+nn-additional-losses
