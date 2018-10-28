@@ -3,10 +3,9 @@
 **/venv
 **/.ipynb_checkpoints
 **/__pycache__/**
-models/dev_test
-models/dev_test/*
-models/Ex**
+saved_models/Ex**
 build
 build/*
 quickNAT_pytorch.egg-info
 quickNAT_pytorch.egg-info/*
+other_packages/
