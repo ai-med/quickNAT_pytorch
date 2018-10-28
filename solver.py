@@ -18,11 +18,7 @@ def _create_exp_directory(exp_dir_name, save_model_dir):
         os.makedirs(expriment_dir)
             
 class Solver(object):
-    # global optimiser parameters
-    default_optim_args = {"lr": 1e-2,
-                          "betas": (0.9, 0.999),
-                          "eps": 1e-8,
-                          "weight_decay": 0.00001}
+    
     def __init__(self, 
                  model,
                  device,
@@ -50,9 +46,7 @@ class Solver(object):
         if torch.cuda.is_available():
             loss_func = loss_func.cuda(device) 
         
-        optim_args_merged = self.default_optim_args.copy()
-        optim_args_merged.update(optim_args)    
-        self.optim = optim(model.parameters(), **optim_args_merged)        
+        self.optim = optim(model.parameters(), **optim_args)        
         self.scheduler = lr_scheduler.StepLR(self.optim, step_size=lr_scheduler_step_size, gamma=lr_scheduler_gamma)  # decay LR by a factor of 0.5 every 5 epochs
 
         self.log_nth = log_nth
@@ -133,7 +127,7 @@ class Solver(object):
                     torch.cuda.empty_cache()
                     if phase == 'val':
                         if i_batch != len(dataloaders[phase]) -1:
-                            print("#", end = '')
+                            print("#", end = '', flush=True)
                         else:
                             print("#")
                 self.logWriter.loss_per_epoch(loss_arr, phase, epoch)
@@ -146,7 +140,7 @@ class Solver(object):
             print("==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] DONE ====")
             self.save_checkpoint({
                 'epoch': epoch + 1,
-                'current_iteration': current_iteration + 1,
+                'start_iteration': current_iteration + 1,
                 'arch': self.model_name,
                 'state_dict': model.state_dict(),
                 'optimizer' : optim.state_dict(),
@@ -164,7 +158,7 @@ class Solver(object):
             print("=> loading checkpoint '{}'".format(self.checkpoint_path))
             checkpoint = torch.load(self.checkpoint_path)
             self.start_epoch = checkpoint['epoch']
-            #self.start_iteration = checkpoint['start_iteration']
+            self.start_iteration = checkpoint['start_iteration']
             self.model.load_state_dict(checkpoint['state_dict'])
             self.optim.load_state_dict(checkpoint['optimizer'])
 
