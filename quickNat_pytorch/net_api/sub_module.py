@@ -23,14 +23,15 @@ class DenseBlock(nn.Module):
         super(DenseBlock, self).__init__()
         self.se_block_type = params['se_block']
         
-        if  self.se_block_type == se.SELayer.CSE:
+        if  self.se_block_type == se.SELayer.CSE.value:
             self.SELayer = se.ChannelSpatialSELayer(params['num_filters'])
             
-        elif self.se_block_type == se.SELayer.SSE:
+        elif self.se_block_type == se.SELayer.SSE.value:
             self.SELayer = se.SpatialSELayer(params['num_filters'])
             
-        elif self.se_block_type == se.SELayer.CSSE:
+        elif self.se_block_type == se.SELayer.CSSE.value:
             self.SELayer = se.ChannelSpatialSELayer(params['num_filters'])
+            
             
         padding_h = int((params['kernel_h'] - 1) / 2)
         padding_w = int((params['kernel_w'] - 1) / 2)
@@ -83,7 +84,7 @@ class EncoderBlock(DenseBlock):
 
     def forward(self, input):
         out_block = super(EncoderBlock, self).forward(input)
-        if self.se_block_type is not se.SELayer.NONE:
+        if self.se_block_type != se.SELayer.NONE.value:
             out_block = self.SELayer(out_block)
             
             
@@ -104,7 +105,7 @@ class DecoderBlock(DenseBlock):
         concat = torch.cat((out_block, unpool), dim=1)
         out_block = super(DecoderBlock, self).forward(concat)
         
-        if self.se_block_type is not se.SELayer.NONE:
+        if self.se_block_type != se.SELayer.NONE.value:
             out_block = self.SELayer(out_block)
             
         if self.drop_out_needed:
@@ -116,9 +117,7 @@ class ClassifierBlock(nn.Module):
     def __init__(self, params):
         super(ClassifierBlock, self).__init__()
         self.conv = nn.Conv2d(params['num_channels'], params['num_class'], params['kernel_c'], params['stride_conv'])
-        # self.softmax = nn.Softmax2d()
 
     def forward(self, input):
         out_conv = self.conv(input)
-        # out_logit = self.softmax(out_conv)
         return out_conv

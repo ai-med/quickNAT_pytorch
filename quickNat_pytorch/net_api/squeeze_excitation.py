@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from enum import Enum, auto
+from enum import Enum
 
 class ChannelSELayer(nn.Module):
     """
@@ -78,7 +78,7 @@ class ChannelSpatialSELayer(nn.Module):
         return output_tensor
     
 class SELayer(Enum):
-    NONE = auto()
-    CSE = auto()
-    SSE = auto()
-    CSSE = auto()
+    NONE = 'NONE'
+    CSE = 'CSE'
+    SSE = 'SSE'
+    CSSE = 'CSSE'

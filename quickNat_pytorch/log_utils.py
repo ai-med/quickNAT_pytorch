@@ -35,9 +35,9 @@ class LogWriter(object):
         self.init_ds()
         self.labels = self.beautify_labels(labels)
         
-    def loss_per_iter(self, loss_value, i):
-        print('[Iteration : ' + str(i) + '] Loss -> ' + str(loss_value))
-        self.writer['train'].add_scalar('loss/per_iteration', loss_value, i)
+    def loss_per_iter(self, loss_value, i_batch, current_iteration):
+        print('[Iteration : ' + str(i_batch) + '] Loss -> ' + str(loss_value))
+        self.writer['train'].add_scalar('loss/per_iteration', loss_value, current_iteration)
         
     def loss_per_epoch(self, loss_arr, phase, epoch):
         writer = self.writer[phase]

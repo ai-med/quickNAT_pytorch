@@ -91,7 +91,7 @@ class Solver(object):
         print('START TRAINING.')
         current_iteration = 0
         for epoch in range(self.start_epoch, self.num_epochs+1):
-            print("\n ==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] START====")            
+            print("\n==== Epoch ["+str(epoch)+" / "+str(self.num_epochs)+"] START====")            
             for phase in ['train', 'val']:
                 print("<<<= Phase: " + phase+" =>>>")
                 loss_arr = []
@@ -118,7 +118,7 @@ class Solver(object):
                         loss.backward()
                         optim.step()
                         if (i_batch % self.log_nth == 0):
-                            self.logWriter.loss_per_iter(loss.item(), current_iteration)
+                            self.logWriter.loss_per_iter(loss.item(), i_batch, current_iteration)
                     else:
                         self.logWriter.update_dice_score_per_iteration(output, y, epoch)
                         
