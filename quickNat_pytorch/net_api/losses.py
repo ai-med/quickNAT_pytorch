@@ -19,20 +19,6 @@ class DiceCoeff(nn.Module):
         t = 2 * inter.float() / union.float()
         return t
 
-
-def dice_coeff(input, target):
-    """Dice coeff for batches"""
-    if input.is_cuda:
-        s = Variable(torch.FloatTensor(1).cuda().zero_())
-    else:
-        s = Variable(torch.FloatTensor(1).zero_())
-
-    for i, c in enumerate(zip(input, target)):
-        s = s + DiceCoeff().forward(c[0], c[1])
-
-    return s / (i + 1)
-
-
 class DiceLoss(_WeightedLoss):
     def forward(self, output, target, weights=None, ignore_index=None):
         """
