@@ -1,9 +1,10 @@
+numpy
 torch
 torchvision
 nibabel
 tensorboardX
 tensorflow
 torchnet
-squeeze-and-excite
+squeeze-and-excitation
 nn-common-modules
 nn-additional-losses
