@@ -17,12 +17,12 @@ plt.axis('scaled')
 
 
 class LogWriter(object):
-    def __init__(self, num_class, log_dir_name, exp_dir_name, use_last_checkpoint=False, labels=None,
+    def __init__(self, num_class, log_dir_name, exp_name, use_last_checkpoint=False, labels=None,
                  cm_cmap=plt.cm.Blues):
         self.num_class = num_class
-        train_log_path, val_log_path = os.path.join(log_dir_name, exp_dir_name, "train"), os.path.join(log_dir_name,
-                                                                                                       exp_dir_name,
-                                                                                                       "val")
+        train_log_path, val_log_path = os.path.join(log_dir_name, exp_name, "train"), os.path.join(log_dir_name,
+                                                                                                   exp_name,
+                                                                                                   "val")
         if not use_last_checkpoint:
             if os.path.exists(train_log_path):
                 shutil.rmtree(train_log_path)
@@ -44,7 +44,6 @@ class LogWriter(object):
         self.writer['train'].add_scalar('loss/per_iteration', loss_value, current_iteration)
 
     def loss_per_epoch(self, loss_arr, phase, epoch):
-        writer = self.writer[phase]
         if phase == 'train':
             loss = loss_arr[-1]
         else:
@@ -107,18 +106,29 @@ class LogWriter(object):
         print("DONE")
 
     def plot_dice_score(self, caption, ds, title, step=None):
-        fig = matplotlib.figure.Figure(figsize=(7, 4), dpi=180, facecolor='w', edgecolor='k')
+        fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(1, 1, 1)
         ax.set_xlabel(title, fontsize=10)
         ax.xaxis.set_label_position('top')
         ax.bar(np.arange(self.num_class), ds)
         ax.set_xticks(np.arange(self.num_class))
-        c = ax.set_xticklabels(self.labels, fontsize=8, rotation=-90, ha='center')
+        c = ax.set_xticklabels(self.labels, fontsize=6, rotation=-90, ha='center')
         ax.xaxis.tick_bottom()
         if step:
             self.writer['val'].add_figure(caption, fig, step)
         else:
             self.writer['val'].add_figure(caption, fig)
+
+    def plot_eval_box_plot(self, caption, class_dist, title):
+        fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')
+        ax = fig.add_subplot(1, 1, 1)
+        ax.set_xlabel(title, fontsize=10)
+        ax.xaxis.set_label_position('top')
+        ax.boxplot(class_dist)
+        ax.set_xticks(np.arange(self.num_class))
+        c = ax.set_xticklabels(self.labels, fontsize=6, rotation=-90, ha='center')
+        ax.xaxis.tick_bottom()
+        self.writer['val'].add_figure(caption, fig)
 
     def image_per_epoch(self, prediction, ground_truth, phase, epoch):
         print("Sample Images...", end='')

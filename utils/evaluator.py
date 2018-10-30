@@ -2,8 +2,10 @@ import math
 
 import numpy as np
 import torch
-
+import nibabel as nib
 import utils.data_utils as du
+import os
+import utils.common_utils as common_utils
 
 
 def dice_confusion_matrix(vol_output, ground_truth, num_classes):
@@ -32,20 +34,17 @@ def dice_score_perclass(vol_output, ground_truth, num_classes):
 
 
 def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_txt_file, remap_config, orientation,
-                        device=0, logWriter=None):
-    print(
-        "**Starting evaluation on the volumes. Please check tensorboard for dice score plots if a logWriter is provided in arguments**")
-    print("Loading data volumes")
+                        prediction_path, device=0, logWriter=None):
+    print("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
+
     volume_list, labelmap_list = du.load_and_preprocess(data_dir, label_dir,
                                                         volumes_txt_file,
                                                         orientation=orientation,
                                                         remap_config=remap_config)
-    print("Data loaded succssfully")
-
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    batch_size = 5
+    batch_size = 20
     model = torch.load(model_path)
     cuda_available = torch.cuda.is_available()
     if cuda_available:
@@ -54,33 +53,42 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
 
     model.eval()
 
+    common_utils.create_if_not(prediction_path)
     volume_dice_score_list = []
-    volume_dice_score_sum = torch.zeros(num_classes)
+    print("Evaluating now...")
     with torch.no_grad():
         for vol_idx, (volume, labelmap) in enumerate(list(zip(volume_list, labelmap_list))):
             volume = volume if len(volume.shape) == 4 else volume[:, np.newaxis, :, :]
             volume, labelmap = torch.tensor(volume).type(torch.FloatTensor), torch.tensor(labelmap).type(
                 torch.LongTensor)
-            batch_dice_score_sum = torch.zeros(num_classes)
+
+            volume_prediction = []
             for i in range(0, len(volume), batch_size):
                 batch_x, batch_y = volume[i: i + batch_size], labelmap[i:i + batch_size]
                 if cuda_available:
                     batch_x = batch_x.cuda(device)
-                    batch_y = batch_y.cuda(device)
                 out = model(batch_x)
-                _, vol_output = torch.max(out, dim=1)
-                dice_vector = dice_score_perclass(vol_output, batch_y, num_classes)
-                batch_dice_score_sum += dice_vector
-            volume_dice_score = batch_dice_score_sum / math.ceil(len(volume) / batch_size)
+                _, batch_output = torch.max(out, dim=1)
+                volume_prediction.append(batch_output)
+
+            volume_prediction = torch.cat(volume_prediction)
+            volume_dice_score = dice_score_perclass(volume_prediction, labelmap.cuda(device), num_classes)
+
+            volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
+            nifti_img = nib.MGHImage(np.squeeze(volume_prediction), np.eye(4))
+            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.mgz')))
             if logWriter:
                 logWriter.plot_dice_score('eval_dice_score', volume_dice_score, volumes_to_use[vol_idx], vol_idx)
 
             volume_dice_score_list.append(volume_dice_score.cpu().numpy())
-
-            print("Volume " + str(vol_idx) + " evaluated")
+            print("#", end='', flush=True)
+        print("100%", flush=True)
+        dice_score_arr = np.asarray(volume_dice_score_list)
+        print("Mean of mean : " + str(np.mean(dice_score_arr)))
+        class_dist = [dice_score_arr[:, c] for c in range(num_classes)]
         avg_dice_score = np.mean(volume_dice_score_list, 0)
         if logWriter:
-            logWriter.plot_dice_score('average_eval_dice_score', avg_dice_score, 'Average Dice Score')
-        print("**End**")
+            logWriter.plot_eval_box_plot('eval_dice_score_box_plot', class_dist, 'Box plot Dice Score')
+    print("DONE")
 
-    return avg_dice_score, volume_dice_score_list
+    return avg_dice_score, class_dist

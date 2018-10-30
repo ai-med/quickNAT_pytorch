@@ -1,6 +1,5 @@
-##TODO: Not a correct version. Need to work on it
-
 import argparse
+import os
 
 import torch
 
@@ -40,19 +39,20 @@ def train(train_params, common_params, data_params, net_params):
                                 "eps": train_params['optim_eps'],
                                 "weight_decay": train_params['optim_weight_decay']},
                     model_name=common_params['model_name'],
+                    exp_name=train_params['exp_name'],
                     labels=data_params['labels'],
                     log_nth=train_params['log_nth'],
                     num_epochs=train_params['num_epochs'],
-                    log_dir_name=common_params['log_dir_name'],
-                    exp_dir_name=train_params['exp_dir_name'],
                     lr_scheduler_step_size=train_params['lr_scheduler_step_size'],
                     lr_scheduler_gamma=train_params['lr_scheduler_gamma'],
                     use_last_checkpoint=train_params['use_last_checkpoint'],
-                    save_model_dir=common_params['save_model_dir'])
+                    log_dir=common_params['log_dir'],
+                    exp_dir=common_params['exp_dir'])
 
     solver.train(train_loader, val_loader)
-
-    quicknat_model.save(train_params['final_model_path'])
+    final_model_path = os.path.join(common_params['save_model_dir'], train_params['final_model_file'])
+    quicknat_model.save(final_model_path)
+    print("final model saved @ " + str(final_model_path))
 
 
 def evaluate(eval_params, net_params, data_params, common_params, train_params):
@@ -64,21 +64,26 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
     volumes_txt_file = eval_params['volumes_txt_file']
     remap_config = eval_params['remap_config']
     device = common_params['device']
-    log_dir_name = common_params['log_dir_name']
-    exp_dir_name = train_params['exp_dir_name']
+    log_dir = common_params['log_dir']
+    exp_dir = common_params['exp_dir']
+    exp_name = train_params['exp_name']
+    save_predictions_dir = eval_params['save_predictions_dir']
+    prediction_path = os.path.join(exp_dir, exp_name, save_predictions_dir)
     orientation = eval_params['orientation']
 
-    logWriter = LogWriter(num_classes, log_dir_name, exp_dir_name, labels=labels)
+    logWriter = LogWriter(num_classes, log_dir, exp_name, labels=labels)
 
-    avg_dice_score, volume_dice_score_list = eu.evaluate_dice_score(eval_model_path,
-                                                                    num_classes,
-                                                                    data_dir,
-                                                                    label_dir,
-                                                                    volumes_txt_file,
-                                                                    remap_config,
-                                                                    orientation,
-                                                                    device,
-                                                                    logWriter)
+    avg_dice_score, class_dist = eu.evaluate_dice_score(eval_model_path,
+                                                        num_classes,
+                                                        data_dir,
+                                                        label_dir,
+                                                        volumes_txt_file,
+                                                        remap_config,
+                                                        orientation,
+                                                        prediction_path,
+                                                        device,
+                                                        logWriter)
+    logWriter.close()
 
 
 if __name__ == '__main__':

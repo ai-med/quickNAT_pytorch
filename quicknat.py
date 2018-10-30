@@ -1,7 +1,7 @@
 """ClassificationCNN"""
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 from nn_common_modules import modules as sm
 
 
@@ -60,11 +60,11 @@ class QuickNat(nn.Module):
 
     def enable_test_dropout(self):
         attr_dict = self.__dict__['_modules']
-        for i in range(1,5):
-            encode_block, decode_block = attr_dict['encode'+str(i)], attr_dict['decode'+str(i)]
+        for i in range(1, 5):
+            encode_block, decode_block = attr_dict['encode' + str(i)], attr_dict['decode' + str(i)]
             encode_block.drop_out = encode_block.drop_out.apply(nn.Module.train)
             decode_block.drop_out = decode_block.drop_out.apply(nn.Module.train)
-            
+
     @property
     def is_cuda(self):
         """
@@ -83,30 +83,27 @@ class QuickNat(nn.Module):
         print('Saving model... %s' % path)
         torch.save(self, path)
 
-    def predict(self, X, device = 0, enable_dropout = False):
+    def predict(self, X, device=0, enable_dropout=False):
         """
         Predicts the outout after the model is trained.
         Inputs:
         - X: Volume to be predicted
-        """        
+        """
         self.eval()
 
         if type(X) is np.ndarray:
-            X = torch.tensor(X, requires_grad = False).type(torch.FloatTensor).cuda(device, non_blocking=True)
+            X = torch.tensor(X, requires_grad=False).type(torch.FloatTensor).cuda(device, non_blocking=True)
         elif type(X) is torch.Tensor and not X.is_cuda:
             X = X.type(torch.FloatTensor).cuda(device, non_blocking=True)
 
         if enable_dropout:
             self.enable_test_dropout()
-            
-        with torch.no_grad():         
+
+        with torch.no_grad():
             out = self.forward(X)
-            
-        max_val, idx = torch.max(out,1)
+
+        max_val, idx = torch.max(out, 1)
         idx = idx.data.cpu().numpy()
         prediction = np.squeeze(idx)
         del X, out, idx, max_val
         return prediction
-    
-    
-    

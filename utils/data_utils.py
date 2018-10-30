@@ -32,15 +32,15 @@ class ImdbData(data.Dataset):
 
 
 def get_data(data_params):
-    Data_train = h5py.File(os.path.join(data_params['base_dir'], data_params['train_data_file']), 'r')
-    Label_train = h5py.File(os.path.join(data_params['base_dir'], data_params['train_label_file']), 'r')
-    Class_Weight_train = h5py.File(os.path.join(data_params['base_dir'], data_params['train_class_weights_file']), 'r')
-    Weight_train = h5py.File(os.path.join(data_params['base_dir'], data_params['train_weights_file']), 'r')
+    Data_train = h5py.File(os.path.join(data_params['data_dir'], data_params['train_data_file']), 'r')
+    Label_train = h5py.File(os.path.join(data_params['data_dir'], data_params['train_label_file']), 'r')
+    Class_Weight_train = h5py.File(os.path.join(data_params['data_dir'], data_params['train_class_weights_file']), 'r')
+    Weight_train = h5py.File(os.path.join(data_params['data_dir'], data_params['train_weights_file']), 'r')
 
-    Data_test = h5py.File(os.path.join(data_params['base_dir'], data_params['test_data_file']), 'r')
-    Label_test = h5py.File(os.path.join(data_params['base_dir'], data_params['test_label_file']), 'r')
-    Class_Weight_test = h5py.File(os.path.join(data_params['base_dir'], data_params['test_class_weights_file']), 'r')
-    Weight_test = h5py.File(os.path.join(data_params['base_dir'], data_params['test_weights_file']), 'r')
+    Data_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_data_file']), 'r')
+    Label_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_label_file']), 'r')
+    Class_Weight_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_class_weights_file']), 'r')
+    Weight_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_weights_file']), 'r')
 
     return (ImdbData(Data_train['OASIS_data_train'][()], Label_train['OASIS_label_train'][()],
                      Class_Weight_train['OASIS_class_weights_train'][()]),
@@ -48,8 +48,6 @@ def get_data(data_params):
                      Class_Weight_test['OASIS_class_weights_test'][()]))
 
 
-# TODO: Need to defing a dynamic pipeline
-# TODO: Presets for training, prediction and evaluation
 def load_and_preprocess(data_dir,
                         label_dir,
                         volumes_txt_file,
@@ -60,6 +58,7 @@ def load_and_preprocess(data_dir,
                         remap_config=None):
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
+    print("Loading and preprocessing data...")
     file_paths = [[os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol + '_glm.mgz')] for vol in
                   volumes_to_use]
 
@@ -87,6 +86,8 @@ def load_and_preprocess(data_dir,
             class_weights_list.append(class_weights)
             weights_list.append(weights)
 
+        print("#", end='', flush=True)
+    print("100%", flush=True)
     if return_weights:
         return volume_list, labelmap_list, class_weights_list, weights_list
     else:
@@ -115,6 +116,7 @@ def _convertToHd5(data_dir,
 
 
 if __name__ == "__main__":
+    print("* Start *")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', '-dd', required=True,
                         help='Base directory of the data folder. This folder should contain one folder per volume, and each volumn folder should have an orig.mgz file')
@@ -129,9 +131,12 @@ if __name__ == "__main__":
     parser.add_argument('--destination_folder', '-df', help='Path where to generate the h5 files')
 
     args = parser.parse_args()
+    print("===Train data===")
     data_train, label_train, class_weights_train, weights_train = _convertToHd5(args.data_dir, args.label_dir,
                                                                                 args.train_volumes, args.remap_config,
                                                                                 args.orientation)
+
+    print("===Test data===")
     data_test, label_test, class_weights_test, weights_test = _convertToHd5(args.data_dir, args.label_dir,
                                                                             args.test_volumes, args.remap_config,
                                                                             args.orientation)
@@ -165,3 +170,4 @@ if __name__ == "__main__":
         label_test_handle.create_dataset("OASIS_label_test", data=label_test)
         class_weights_test_handle.create_dataset("OASIS_class_weights_test", data=class_weights_test)
         weights_test_handle.create_dataset("OASIS_weights_test", data=weights_test)
+    print("* Finish *")
