@@ -1,11 +1,11 @@
-import math
+import os
 
+import nibabel as nib
 import numpy as np
 import torch
-import nibabel as nib
-import utils.data_utils as du
-import os
+
 import utils.common_utils as common_utils
+import utils.data_utils as du
 
 
 def dice_confusion_matrix(vol_output, ground_truth, num_classes):
@@ -17,10 +17,8 @@ def dice_confusion_matrix(vol_output, ground_truth, num_classes):
             inter = torch.sum(torch.mul(GT, Pred))
             union = torch.sum(GT) + torch.sum(Pred) + 0.0001
             dice_cm[i, j] = 2 * torch.div(inter, union)
-
     avg_dice = torch.mean(torch.diagflat(dice_cm))
     return avg_dice, dice_cm
-
 
 def dice_score_perclass(vol_output, ground_truth, num_classes):
     dice_perclass = torch.zeros(num_classes)
@@ -37,14 +35,11 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
                         prediction_path, device=0, logWriter=None):
     print("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
 
-    volume_list, labelmap_list = du.load_and_preprocess(data_dir, label_dir,
-                                                        volumes_txt_file,
-                                                        orientation=orientation,
-                                                        remap_config=remap_config)
+    batch_size = 20
+
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    batch_size = 20
     model = torch.load(model_path)
     cuda_available = torch.cuda.is_available()
     if cuda_available:
@@ -56,8 +51,11 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
     common_utils.create_if_not(prediction_path)
     volume_dice_score_list = []
     print("Evaluating now...")
+    file_paths = du.load_file_paths(data_dir, label_dir, volumes_txt_file)
     with torch.no_grad():
-        for vol_idx, (volume, labelmap) in enumerate(list(zip(volume_list, labelmap_list))):
+        for vol_idx, file_path in enumerate(file_paths):
+            volume, labelmap = du.load_and_preprocess(file_path, orientation=orientation, remap_config=remap_config)
+
             volume = volume if len(volume.shape) == 4 else volume[:, np.newaxis, :, :]
             volume, labelmap = torch.tensor(volume).type(torch.FloatTensor), torch.tensor(labelmap).type(
                 torch.LongTensor)
@@ -78,15 +76,16 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
             nifti_img = nib.MGHImage(np.squeeze(volume_prediction), np.eye(4))
             nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.mgz')))
             if logWriter:
-                logWriter.plot_dice_score('eval_dice_score', volume_dice_score, volumes_to_use[vol_idx], vol_idx)
+                logWriter.plot_dice_score('val', 'eval_dice_score', volume_dice_score, volumes_to_use[vol_idx], vol_idx)
 
-            volume_dice_score_list.append(volume_dice_score.cpu().numpy())
-            print("#", end='', flush=True)
-        print("100%", flush=True)
+            volume_dice_score = volume_dice_score.cpu().numpy()
+            volume_dice_score_list.append(volume_dice_score)
+            print(volume_dice_score, np.mean(volume_dice_score))
         dice_score_arr = np.asarray(volume_dice_score_list)
-        print("Mean of mean : " + str(np.mean(dice_score_arr)))
+        avg_dice_score = np.mean(dice_score_arr)
+        print("Mean of dice score : " + str(avg_dice_score))
         class_dist = [dice_score_arr[:, c] for c in range(num_classes)]
-        avg_dice_score = np.mean(volume_dice_score_list, 0)
+
         if logWriter:
             logWriter.plot_eval_box_plot('eval_dice_score_box_plot', class_dist, 'Box plot Dice Score')
     print("DONE")

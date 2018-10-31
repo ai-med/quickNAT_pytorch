@@ -7,7 +7,6 @@ from textwrap import wrap
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 from tensorboardX import SummaryWriter
 
 import evaluator as eu
@@ -16,6 +15,7 @@ plt.switch_backend('agg')
 plt.axis('scaled')
 
 
+# TODO: Add custom phase names
 class LogWriter(object):
     def __init__(self, num_class, log_dir_name, exp_name, use_last_checkpoint=False, labels=None,
                  cm_cmap=plt.cm.Blues):
@@ -35,8 +35,6 @@ class LogWriter(object):
         }
         self.curr_iter = 1
         self.cm_cmap = cm_cmap
-        self.init_cm()
-        self.init_ds()
         self.labels = self.beautify_labels(labels)
 
     def loss_per_iter(self, loss_value, i_batch, current_iteration):
@@ -51,18 +49,11 @@ class LogWriter(object):
         self.writer[phase].add_scalar('loss/per_epoch', loss, epoch)
         print('epoch ' + phase + ' loss = ' + str(loss))
 
-    def update_cm_per_iter(self, predictions, correct_labels, phase):
-        _, batch_output = torch.max(predictions, dim=1)
-        _, cm_batch = eu.dice_confusion_matrix(batch_output, correct_labels, self.num_class)
-        self._cm[phase] += cm_batch.cpu()
-        del cm_batch, batch_output
-
-    def cm_per_epoch(self, phase, epoch, i_batch):
-        print("Confusion Matrix...", end='')
-        cm = (self._cm[phase] / (i_batch + 1)).cpu().numpy()
+    def cm_per_epoch(self, phase, output, correct_labels, epoch):
+        print("Confusion Matrix...", end='', flush=True)
+        _, cm = eu.dice_confusion_matrix(output, correct_labels, self.num_class)
         self.plot_cm('confusion_matrix', phase, cm, epoch)
-        self.init_cm()
-        print("DONE")
+        print("DONE", flush=True)
 
     def plot_cm(self, caption, phase, cm, step=None):
         fig = matplotlib.figure.Figure(figsize=(8, 8), dpi=180, facecolor='w', edgecolor='k')
@@ -93,19 +84,14 @@ class LogWriter(object):
         else:
             self.writer[phase].add_figure(caption + '/' + phase, fig)
 
-    def update_dice_score_per_iteration(self, predictions, correct_labels, epoch):
-        _, batch_output = torch.max(predictions, dim=1)
-        score_vector = eu.dice_score_perclass(batch_output, correct_labels, self.num_class)
-        self._ds += score_vector.cpu()
+    def dice_score_per_epoch(self, phase, output, correct_labels, epoch):
+        print("Dice Score...", end='', flush=True)
+        ds = eu.dice_score_perclass(output, correct_labels, self.num_class)
+        self.plot_dice_score(phase, 'dice_score_per_epoch', ds, 'Dice Score', epoch)
 
-    def dice_score_per_epoch(self, epoch, i_batch):
-        print("Dice Score...", end='')
-        ds = (self._ds / (i_batch + 1)).cpu().numpy()
-        self.plot_dice_score('dice_score_per_epoch', ds, 'Dice Score', epoch)
-        self.init_ds()
-        print("DONE")
+        print("DONE", flush=True)
 
-    def plot_dice_score(self, caption, ds, title, step=None):
+    def plot_dice_score(self, phase, caption, ds, title, step=None):
         fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(1, 1, 1)
         ax.set_xlabel(title, fontsize=10)
@@ -115,9 +101,9 @@ class LogWriter(object):
         c = ax.set_xticklabels(self.labels, fontsize=6, rotation=-90, ha='center')
         ax.xaxis.tick_bottom()
         if step:
-            self.writer['val'].add_figure(caption, fig, step)
+            self.writer[phase].add_figure(caption + '/' + phase, fig, step)
         else:
-            self.writer['val'].add_figure(caption, fig)
+            self.writer[phase].add_figure(caption + '/' + phase, fig)
 
     def plot_eval_box_plot(self, caption, class_dist, title):
         fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')
@@ -131,7 +117,7 @@ class LogWriter(object):
         self.writer['val'].add_figure(caption, fig)
 
     def image_per_epoch(self, prediction, ground_truth, phase, epoch):
-        print("Sample Images...", end='')
+        print("Sample Images...", end='', flush=True)
         ncols = 2
         nrows = len(prediction)
         fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 20))
@@ -145,7 +131,7 @@ class LogWriter(object):
             ax[i][1].axis('off')
         fig.set_tight_layout(True)
         self.writer[phase].add_figure('sample_prediction/' + phase, fig, epoch)
-        print('DONE')
+        print('DONE', flush=True)
 
     def graph(self, model, X):
         self.writer['train'].add_graph(model, X)
@@ -153,15 +139,6 @@ class LogWriter(object):
     def close(self):
         self.writer['train'].close()
         self.writer['val'].close()
-
-    def init_cm(self):
-        self._cm = {
-            'train': torch.zeros(self.num_class, self.num_class),
-            'val': torch.zeros(self.num_class, self.num_class)
-        }
-
-    def init_ds(self):
-        self._ds = torch.zeros(self.num_class)
 
     def beautify_labels(self, labels):
         classes = [re.sub(r'([a-z](?=[A-Z])|[A-Z](?=[A-Z][a-z]))', r'\1 ', x) for x in labels]

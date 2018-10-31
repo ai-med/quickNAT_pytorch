@@ -59,6 +59,7 @@ class Solver(object):
         if use_last_checkpoint:
             self.load_checkpoint()
 
+    # TODO:Need to correct the CM and dice score calculation.
     def train(self, train_loader, val_loader):
         """
         Train a given model with the provided data.
@@ -77,20 +78,21 @@ class Solver(object):
             torch.cuda.empty_cache()
             model.cuda(self.device)
 
-        print('START TRAINING.')
+        print('START TRAINING. : model name = %s, device = %s' % (
+            self.model_name, torch.cuda.get_device_name(self.device)))
         current_iteration = self.start_iteration
         for epoch in range(self.start_epoch, self.num_epochs + 1):
-            print("\n==== Epoch [" + str(epoch) + " / " + str(self.num_epochs) + "] START ====")
+            print("\n==== Epoch [ %d  /  %d ] START ====" % (epoch, self.num_epochs))
             for phase in ['train', 'val']:
-                print("<<<= Phase: " + phase + " =>>>")
+                print("<<<= Phase: %s =>>>" % phase)
                 loss_arr = []
+                out_list = []
+                y_list = []
                 if phase == 'train':
                     model.train()
                     scheduler.step()
-                    was_training = True
                 else:
                     model.eval()
-                    was_training = False
                 for i_batch, sample_batched in enumerate(dataloaders[phase]):
                     X = sample_batched[0].type(torch.FloatTensor)
                     y = sample_batched[1].type(torch.LongTensor)
@@ -107,31 +109,32 @@ class Solver(object):
                         optim.zero_grad()
                         loss.backward()
                         optim.step()
-                        if (i_batch % self.log_nth == 0):
+                        if i_batch % self.log_nth == 0:
                             self.logWriter.loss_per_iter(loss.item(), i_batch, current_iteration)
                         current_iteration += 1
-                    else:
-                        self.logWriter.update_dice_score_per_iteration(output, y, epoch)
 
                     loss_arr.append(loss.item())
 
-                    with torch.no_grad():
-                        self.logWriter.update_cm_per_iter(output, y, phase)
+                    _, batch_output = torch.max(output, dim=1)
+                    out_list.append(batch_output.cpu())
+                    y_list.append(y.cpu())
 
-                    del X, y, w, output, loss
+                    del X, y, w, output, batch_output, loss
                     torch.cuda.empty_cache()
                     if phase == 'val':
                         if i_batch != len(dataloaders[phase]) - 1:
                             print("#", end='', flush=True)
                         else:
                             print("100%", flush=True)
-                self.logWriter.loss_per_epoch(loss_arr, phase, epoch)
-                index = np.random.choice(len(dataloaders[phase].dataset.X), 3, replace=False)
-                self.logWriter.image_per_epoch(model.predict(dataloaders[phase].dataset.X[index], self.device),
-                                               dataloaders[phase].dataset.y[index], phase, epoch)
-                self.logWriter.cm_per_epoch(phase, epoch, i_batch)
-                if not was_training:
-                    self.logWriter.dice_score_per_epoch(epoch, i_batch)
+
+                with torch.no_grad():
+                    out_arr, y_arr = torch.cat(out_list), torch.cat(y_list)
+                    self.logWriter.loss_per_epoch(loss_arr, phase, epoch)
+                    index = np.random.choice(len(dataloaders[phase].dataset.X), 3, replace=False)
+                    self.logWriter.image_per_epoch(model.predict(dataloaders[phase].dataset.X[index], self.device),
+                                                   dataloaders[phase].dataset.y[index], phase, epoch)
+                    self.logWriter.cm_per_epoch(phase, out_arr, y_arr, epoch)
+                    self.logWriter.dice_score_per_epoch(phase, out_arr, y_arr, epoch)
 
             print("==== Epoch [" + str(epoch) + " / " + str(self.num_epochs) + "] DONE ====")
             self.save_checkpoint({

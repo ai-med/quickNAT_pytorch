@@ -7,7 +7,7 @@ import utils.evaluator as eu
 from quicknat import QuickNat
 from settings import Settings
 from solver import Solver
-from utils.data_utils import get_data
+from utils.data_utils import get_imdb_dataset
 from utils.log_utils import LogWriter
 
 torch.set_default_tensor_type('torch.FloatTensor')
@@ -15,7 +15,7 @@ torch.set_default_tensor_type('torch.FloatTensor')
 
 def load_data(data_params):
     print("Loading dataset")
-    train_data, test_data = get_data(data_params)
+    train_data, test_data = get_imdb_dataset(data_params)
     print("Train size: %i" % len(train_data))
     print("Test size: %i" % len(test_data))
     return train_data, test_data
