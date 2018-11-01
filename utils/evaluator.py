@@ -8,8 +8,11 @@ import utils.common_utils as common_utils
 import utils.data_utils as du
 
 
-def dice_confusion_matrix(vol_output, ground_truth, num_classes):
+def dice_confusion_matrix(vol_output, ground_truth, num_classes, no_samples=10, mode='train'):
     dice_cm = torch.zeros(num_classes, num_classes)
+    if mode != 'train':
+        samples = np.random.choice(len(vol_output), no_samples)
+        vol_output, ground_truth = vol_output[samples], ground_truth[samples]
     for i in range(num_classes):
         GT = (ground_truth == i).float()
         for j in range(num_classes):
@@ -20,8 +23,12 @@ def dice_confusion_matrix(vol_output, ground_truth, num_classes):
     avg_dice = torch.mean(torch.diagflat(dice_cm))
     return avg_dice, dice_cm
 
-def dice_score_perclass(vol_output, ground_truth, num_classes):
+
+def dice_score_perclass(vol_output, ground_truth, num_classes, no_samples=10, mode='train'):
     dice_perclass = torch.zeros(num_classes)
+    if mode != 'train':
+        samples = np.random.choice(len(vol_output), no_samples)
+        vol_output, ground_truth = vol_output[samples], ground_truth[samples]
     for i in range(num_classes):
         GT = (ground_truth == i).float()
         Pred = (vol_output == i).float()
@@ -32,7 +39,7 @@ def dice_score_perclass(vol_output, ground_truth, num_classes):
 
 
 def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_txt_file, remap_config, orientation,
-                        prediction_path, device=0, logWriter=None):
+                        prediction_path, device=0, logWriter=None, mode='eval'):
     print("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
 
     batch_size = 20
@@ -70,7 +77,7 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
                 volume_prediction.append(batch_output)
 
             volume_prediction = torch.cat(volume_prediction)
-            volume_dice_score = dice_score_perclass(volume_prediction, labelmap.cuda(device), num_classes)
+            volume_dice_score = dice_score_perclass(volume_prediction, labelmap.cuda(device), num_classes, mode=mode)
 
             volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
             nifti_img = nib.MGHImage(np.squeeze(volume_prediction), np.eye(4))
