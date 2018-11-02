@@ -42,10 +42,10 @@ def get_imdb_dataset(data_params):
 
 def load_dataset(file_paths,
                  orientation,
+                 remap_config,
                  return_weights=False,
                  reduce_slices=False,
-                 remove_black=False,
-                 remap_config=None):
+                 remove_black=False):
     print("Loading and preprocessing data...")
     volume_list, labelmap_list, headers, class_weights_list, weights_list = [], [], [], [], []
 
@@ -73,9 +73,10 @@ def load_dataset(file_paths,
         return volume_list, labelmap_list, headers
 
 
-def load_and_preprocess(file_path, orientation, remap_config=True, reduce_slices=False,
+def load_and_preprocess(file_path, orientation, remap_config, reduce_slices=False,
                         remove_black=False,
                         return_weights=False):
+    print(file_path)
     volume, labelmap, header = load_data(file_path, orientation)
 
     volume, labelmap, class_weights, weights = preprocess(volume, labelmap, remap_config=remap_config,
@@ -93,7 +94,7 @@ def load_data(file_path, orientation):
     return volume, labelmap, volume_nifty.header
 
 
-def preprocess(volume, labelmap, remap_config=True, reduce_slices=False, remove_black=False, return_weights=False):
+def preprocess(volume, labelmap, remap_config, reduce_slices=False, remove_black=False, return_weights=False):
     if reduce_slices:
         volume, labelmap = preprocessor.reduce_slices(volume, labelmap)
 
@@ -125,9 +126,10 @@ def load_file_paths(data_dir, label_dir, volumes_txt_file=None):
     else:
         volumes_to_use = [name for name in os.listdir(data_dir) if name.startswith('IXI')]
 
-    file_paths = [[os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol, 'mri/aseg.auto_noCCseg.mgz')]
-                  for
-                  vol in volumes_to_use]
+    file_paths = [
+        [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol, 'mri/aseg.auto_noCCseg.mgz')]
+        for
+        vol in volumes_to_use]
     # file_paths = [[os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol + '_glm.mgz')]
     #               for
     #               vol in volumes_to_use]

@@ -57,10 +57,10 @@ def convert_h5(data_dir, label_dir, data_split, train_volumes, test_volumes, f, 
     print("===Train data===")
     data_train, label_train, class_weights_train, weights_train, _ = du.load_dataset(train_file_paths,
                                                                                      orientation,
+                                                                                     remap_config=remap_config,
                                                                                      return_weights=True,
                                                                                      reduce_slices=True,
-                                                                                     remove_black=True,
-                                                                                     remap_config=remap_config)
+                                                                                     remove_black=True)
 
     _write_h5(data_train, label_train, class_weights_train, weights_train, f, mode='train')
 
@@ -68,10 +68,10 @@ def convert_h5(data_dir, label_dir, data_split, train_volumes, test_volumes, f, 
     print("===Test data===")
     data_test, label_test, class_weights_test, weights_test, _ = du.load_dataset(test_file_paths,
                                                                                  orientation,
+                                                                                 remap_config=remap_config,
                                                                                  return_weights=True,
                                                                                  reduce_slices=True,
-                                                                                 remove_black=True,
-                                                                                 remap_config=remap_config)
+                                                                                 remove_black=True)
 
     _write_h5(data_test, label_test, class_weights_test, weights_test, f, mode='test')
 
