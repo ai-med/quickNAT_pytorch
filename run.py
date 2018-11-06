@@ -26,7 +26,7 @@ def train(train_params, common_params, data_params, net_params):
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=train_params['train_batch_size'], shuffle=True,
                                                num_workers=4, pin_memory=True)
-    val_loader = torch.utils.data.DataLoader(test_data, batch_size=train_params['val_batch_size'], shuffle=False,
+    val_loader = torch.utils.datg.DataLoader(test_data, batch_size=train_params['val_batch_size'], shuffle=False,
                                              num_workers=4, pin_memory=True)
 
     quicknat_model = QuickNat(net_params)

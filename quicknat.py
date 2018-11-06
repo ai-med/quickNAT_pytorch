@@ -1,4 +1,4 @@
-"""ClassificationCNN"""
+"""Quicknat architecture"""
 import numpy as np
 import torch
 import torch.nn as nn
@@ -8,24 +8,22 @@ from nn_common_modules import modules as sm
 class QuickNat(nn.Module):
     """
     A PyTorch implementation of QuickNAT
-    Coded by Abhijit and Shayan
-
-    param ={
-        'num_channels':1,
-        'num_filters':64,
-        'kernel_h':5,
-        'kernel_w':5,
-        'stride_conv':1,
-        'pool':2,
-        'stride_pool':2,
-        'num_classes':28
-        'se_block': False,
-        'drop_out':0.2
-    }
 
     """
-
     def __init__(self, params):
+        """
+
+        :param params: {'num_channels':1,
+                        'num_filters':64,
+                        'kernel_h':5,
+                        'kernel_w':5,
+                        'stride_conv':1,
+                        'pool':2,
+                        'stride_pool':2,
+                        'num_classes':28
+                        'se_block': False,
+                        'drop_out':0.2}
+        """
         super(QuickNat, self).__init__()
 
         self.encode1 = sm.EncoderBlock(params)
@@ -43,6 +41,11 @@ class QuickNat(nn.Module):
         self.classifier = sm.ClassifierBlock(params)
 
     def forward(self, input):
+        """
+
+        :param input: X
+        :return: probabiliy map
+        """
         e1, out1, ind1 = self.encode1.forward(input)
         e2, out2, ind2 = self.encode2.forward(e1)
         e3, out3, ind3 = self.encode3.forward(e2)
@@ -59,6 +62,10 @@ class QuickNat(nn.Module):
         return prob
 
     def enable_test_dropout(self):
+        """
+        Enables test time drop out for uncertainity
+        :return:
+        """
         attr_dict = self.__dict__['_modules']
         for i in range(1, 5):
             encode_block, decode_block = attr_dict['encode' + str(i)], attr_dict['decode' + str(i)]
@@ -75,7 +82,7 @@ class QuickNat(nn.Module):
     def save(self, path):
         """
         Save model with its parameters to the given path. Conventionally the
-        path should end with "*.model".
+        path should end with '*.model'.
 
         Inputs:
         - path: path string

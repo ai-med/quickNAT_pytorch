@@ -9,3 +9,5 @@ build/*
 quickNAT_pytorch.egg-info
 quickNAT_pytorch.egg-info/*
 other_packages/
+*.DS_Store
+documentation/

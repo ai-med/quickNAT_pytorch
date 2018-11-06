@@ -5,15 +5,21 @@ import nibabel as nb
 import numpy as np
 import torch
 import torch.utils.data as data
+from torchvision import transforms
+import utils.preprocessor as preprocessor
 
-import preprocessor
+transform_train = transforms.Compose([
+    transforms.RandomCrop(200, padding=56),
+    transforms.ToTensor(),
+])
 
 
 class ImdbData(data.Dataset):
-    def __init__(self, X, y, w):
+    def __init__(self, X, y, w, transforms=None):
         self.X = X if len(X.shape) == 4 else X[:, np.newaxis, :, :]
         self.y = y
         self.w = w
+        self.transforms = transforms
 
     def __getitem__(self, index):
         img = torch.from_numpy(self.X[index])
@@ -36,7 +42,8 @@ def get_imdb_dataset(data_params):
     class_weight_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_class_weights_file']), 'r')
     weight_test = h5py.File(os.path.join(data_params['data_dir'], data_params['test_weights_file']), 'r')
 
-    return (ImdbData(data_train['data'][()], label_train['label'][()], class_weight_train['class_weights'][()]),
+    return (ImdbData(data_train['data'][()], label_train['label'][()], class_weight_train['class_weights'][()],
+                     transforms=transform_train),
             ImdbData(data_test['data'][()], label_test['label'][()], class_weight_test['class_weights'][()]))
 
 
@@ -76,7 +83,6 @@ def load_dataset(file_paths,
 def load_and_preprocess(file_path, orientation, remap_config, reduce_slices=False,
                         remove_black=False,
                         return_weights=False):
-    print(file_path)
     volume, labelmap, header = load_data(file_path, orientation)
 
     volume, labelmap, class_weights, weights = preprocess(volume, labelmap, remap_config=remap_config,
@@ -120,17 +126,17 @@ def load_file_paths(data_dir, label_dir, volumes_txt_file=None):
     :param volumes_txt_file: (Optional) Path to the a csv file, when provided only these data points will be read
     :return: list of file paths as string
     """
+
+    volume_exclude_list = ['IXI290', 'IXI423']
     if volumes_txt_file:
         with open(volumes_txt_file) as file_handle:
             volumes_to_use = file_handle.read().splitlines()
     else:
-        volumes_to_use = [name for name in os.listdir(data_dir) if name.startswith('IXI')]
+        volumes_to_use = [name for name in os.listdir(data_dir) if
+                          name.startswith('IXI') and name not in volume_exclude_list]
 
     file_paths = [
         [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol, 'mri/aseg.auto_noCCseg.mgz')]
         for
         vol in volumes_to_use]
-    # file_paths = [[os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol + '_glm.mgz')]
-    #               for
-    #               vol in volumes_to_use]
     return file_paths

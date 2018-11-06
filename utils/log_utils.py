@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tensorboardX import SummaryWriter
 
-import evaluator as eu
+import utils.evaluator as eu
 
 plt.switch_backend('agg')
 plt.axis('scaled')
