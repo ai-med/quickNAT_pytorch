@@ -7,8 +7,11 @@ from torch.optim import lr_scheduler
 
 from utils.log_utils import LogWriter
 import utils.common_utils as common_utils
+from os import listdir
+import glob
 
-CHECKPOINT_FILE_NAME = 'checkpoint.pth.tar'
+CHECKPOINT_DIR = 'checkpoints'
+CHECKPOINT_EXTENSION = 'pth.tar'
 
 
 class Solver(object):
@@ -47,13 +50,14 @@ class Solver(object):
 
         exp_dir_path = os.path.join(exp_dir, exp_name)
         common_utils.create_if_not(exp_dir_path)
+        common_utils.create_if_not(os.path.join(exp_dir_path, CHECKPOINT_DIR))
         self.exp_dir_path = exp_dir_path
 
         self.log_nth = log_nth
         self.logWriter = LogWriter(num_class, log_dir, exp_name, use_last_checkpoint, labels)
 
         self.use_last_checkpoint = use_last_checkpoint
-        self.checkpoint_path = os.path.join(exp_dir_path, CHECKPOINT_FILE_NAME)
+
         self.start_epoch = 1
         self.start_iteration = 1
         if use_last_checkpoint:
@@ -144,18 +148,22 @@ class Solver(object):
                 'state_dict': model.state_dict(),
                 'optimizer': optim.state_dict(),
                 'scheduler': scheduler.state_dict()
-            }, self.checkpoint_path)
+            }, os.path.join(self.exp_dir_path, CHECKPOINT_DIR,
+                            'checkpoint_epoch_' + str(epoch) + '.' + CHECKPOINT_EXTENSION))
 
         print('FINISH.')
         self.logWriter.close()
 
-    def save_checkpoint(self, state, filename=CHECKPOINT_FILE_NAME):
+    def save_checkpoint(self, state, filename):
         torch.save(state, filename)
 
     def load_checkpoint(self):
-        if os.path.isfile(self.checkpoint_path):
-            print("=> loading checkpoint '{}'".format(self.checkpoint_path))
-            checkpoint = torch.load(self.checkpoint_path)
+        checkpoint_path = os.path.join(self.exp_dir_path, CHECKPOINT_DIR, '*.' + CHECKPOINT_EXTENSION)
+        list_of_files = glob.glob(checkpoint_path)
+        if len(list_of_files) > 0:
+            latest_file = max(list_of_files, key=os.path.getctime)
+            print("=> loading checkpoint '{}'".format(latest_file))
+            checkpoint = torch.load(latest_file)
             self.start_epoch = checkpoint['epoch']
             self.start_iteration = checkpoint['start_iteration']
             self.model.load_state_dict(checkpoint['state_dict'])
@@ -167,6 +175,6 @@ class Solver(object):
                         state[k] = v.to(self.device)
 
             self.scheduler.load_state_dict(checkpoint['scheduler'])
-            print("=> loaded checkpoint '{}' (epoch {})".format(self.checkpoint_path, checkpoint['epoch']))
+            print("=> loaded checkpoint '{}' (epoch {})".format(latest_file, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(self.checkpoint_path))
+            print("=> no checkpoint found at '{}' folder".format(os.path.join(self.exp_dir_path, CHECKPOINT_DIR)))

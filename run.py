@@ -9,6 +9,7 @@ from settings import Settings
 from solver import Solver
 from utils.data_utils import get_imdb_dataset
 from utils.log_utils import LogWriter
+import shutil
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -26,10 +27,13 @@ def train(train_params, common_params, data_params, net_params):
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=train_params['train_batch_size'], shuffle=True,
                                                num_workers=4, pin_memory=True)
-    val_loader = torch.utils.datg.DataLoader(test_data, batch_size=train_params['val_batch_size'], shuffle=False,
+    val_loader = torch.utils.data.DataLoader(test_data, batch_size=train_params['val_batch_size'], shuffle=False,
                                              num_workers=4, pin_memory=True)
 
-    quicknat_model = QuickNat(net_params)
+    if train_params['use_pre_trained']:
+        quicknat_model = torch.load(train_params['pre_trained_path'])
+    else:
+        quicknat_model = QuickNat(net_params)
 
     solver = Solver(quicknat_model,
                     device=common_params['device'],
@@ -86,6 +90,18 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
     logWriter.close()
 
 
+def delete_contents(folder):
+    for the_file in os.listdir(folder):
+        file_path = os.path.join(folder, the_file)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(e)
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -100,5 +116,10 @@ if __name__ == '__main__':
         train(train_params, common_params, data_params, net_params)
     elif args.mode == 'eval':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
+    elif args.mode == 'clear':
+        delete_contents(common_params['exp_dir'])
+        print("Cleared experiments directory successfully!!")
+        delete_contents(common_params['log_dir'])
+        print("Cleared logs directory successfully!!")
     else:
-        raise ValueError('Invalid value for mode. only support values are train and eval')
+        raise ValueError('Invalid value for mode. only support values are train, eval and clear')
