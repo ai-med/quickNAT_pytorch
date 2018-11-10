@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from nn_common_modules import modules as sm
-
+from squeeze_and_excitation import squeeze_and_excitation as se
 
 class QuickNat(nn.Module):
     """
@@ -26,17 +26,17 @@ class QuickNat(nn.Module):
         """
         super(QuickNat, self).__init__()
 
-        self.encode1 = sm.EncoderBlock(params)
+        self.encode1 = sm.EncoderBlock(params, se_block_type=se.SELayer.SSE)
         params['num_channels'] = 64
-        self.encode2 = sm.EncoderBlock(params)
-        self.encode3 = sm.EncoderBlock(params)
-        self.encode4 = sm.EncoderBlock(params)
-        self.bottleneck = sm.DenseBlock(params)
+        self.encode2 = sm.EncoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.encode3 = sm.EncoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.encode4 = sm.EncoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.bottleneck = sm.DenseBlock(params, se_block_type=se.SELayer.SSE)
         params['num_channels'] = 128
-        self.decode1 = sm.DecoderBlock(params)
-        self.decode2 = sm.DecoderBlock(params)
-        self.decode3 = sm.DecoderBlock(params)
-        self.decode4 = sm.DecoderBlock(params)
+        self.decode1 = sm.DecoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.decode2 = sm.DecoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.decode3 = sm.DecoderBlock(params, se_block_type=se.SELayer.SSE)
+        self.decode4 = sm.DecoderBlock(params, se_block_type=se.SELayer.SSE)
         params['num_channels'] = 64
         self.classifier = sm.ClassifierBlock(params)
 
