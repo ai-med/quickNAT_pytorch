@@ -1,3 +1,4 @@
+import glob
 import os
 
 import numpy as np
@@ -5,10 +6,8 @@ import torch
 from nn_additional_losses import losses as additional_losses
 from torch.optim import lr_scheduler
 
-from utils.log_utils import LogWriter
 import utils.common_utils as common_utils
-from os import listdir
-import glob
+from utils.log_utils import LogWriter
 
 CHECKPOINT_DIR = 'checkpoints'
 CHECKPOINT_EXTENSION = 'pth.tar'
