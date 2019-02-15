@@ -25,11 +25,12 @@ Guha Roy, A., Conjeti, S., Navab, N., and Wachinger, C. 2018. QuickNAT: Segmenti
 ### Pre-requisites
 
 You need to have following in order for this library to work as expected
-1. Python >= 3.5
-2. Pip >= 19.0
-2. Pytorch >= 1.0.0
-3. Numpy >= 1.14.0
-4. Squeeze and Excitation (https://github.com/ai-med/squeeze_and_excitation, Follow this link to know more about installation and usage)
+1. python >= 3.5
+2. pip >= 19.0
+3. pytorch >= 1.0.0
+4. numpy >= 1.14.0
+5. nn-common-modules >=1.0 (https://github.com/ai-med/nn-common-modules, A collection of commonly used code modules in deep learning. Follow this link to know more about installation and usage)
+6. Squeeze and Excitation >=1.0 (https://github.com/ai-med/squeeze_and_excitation, Follow this link to know more about installation and usage)
 
 ### Training your model
 
