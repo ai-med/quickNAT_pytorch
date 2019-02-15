@@ -60,6 +60,10 @@ class Solver(object):
 
         self.start_epoch = 1
         self.start_iteration = 1
+
+        self.best_ds_mean = 0
+        self.best_ds_mean_epoch = 0
+
         if use_last_checkpoint:
             self.load_checkpoint()
 
@@ -138,7 +142,11 @@ class Solver(object):
                     self.logWriter.image_per_epoch(model.predict(dataloaders[phase].dataset.X[index], self.device),
                                                    dataloaders[phase].dataset.y[index], phase, epoch)
                     self.logWriter.cm_per_epoch(phase, out_arr, y_arr, epoch)
-                    self.logWriter.dice_score_per_epoch(phase, out_arr, y_arr, epoch)
+                    ds_mean = self.logWriter.dice_score_per_epoch(phase, out_arr, y_arr, epoch)
+                    if phase == 'val':
+                        if ds_mean > self.best_ds_mean:
+                            self.best_ds_mean = ds_mean
+                            self.best_ds_mean_epoch = epoch
 
             print("==== Epoch [" + str(epoch) + " / " + str(self.num_epochs) + "] DONE ====")
             self.save_checkpoint({
@@ -149,32 +157,54 @@ class Solver(object):
                 'optimizer': optim.state_dict(),
                 'scheduler': scheduler.state_dict()
             }, os.path.join(self.exp_dir_path, CHECKPOINT_DIR,
-                            'checkpoint_epoch_' + str(epoch) + '.' + CHECKPOINT_EXTENSION))
+                            'checkpoint_epoch_' + str(epoch) + '.' + CHECKPOINT_EXTENSION)) 
 
         print('FINISH.')
         self.logWriter.close()
 
+
+    def save_best_model(self, path):
+        """
+        Save model with its parameters to the given path. Conventionally the
+        path should end with "*.model".
+        Inputs:
+        - path: path string
+        """
+        print('Saving model... %s' % path)
+        self.load_checkpoint(self.best_ds_mean_epoch)
+
+        torch.save(self.model, path)
+
     def save_checkpoint(self, state, filename):
         torch.save(state, filename)
 
-    def load_checkpoint(self):
-        checkpoint_path = os.path.join(self.exp_dir_path, CHECKPOINT_DIR, '*.' + CHECKPOINT_EXTENSION)
-        list_of_files = glob.glob(checkpoint_path)
-        if len(list_of_files) > 0:
-            latest_file = max(list_of_files, key=os.path.getctime)
-            print("=> loading checkpoint '{}'".format(latest_file))
-            checkpoint = torch.load(latest_file)
-            self.start_epoch = checkpoint['epoch']
-            self.start_iteration = checkpoint['start_iteration']
-            self.model.load_state_dict(checkpoint['state_dict'])
-            self.optim.load_state_dict(checkpoint['optimizer'])
-
-            for state in self.optim.state.values():
-                for k, v in state.items():
-                    if torch.is_tensor(v):
-                        state[k] = v.to(self.device)
-
-            self.scheduler.load_state_dict(checkpoint['scheduler'])
-            print("=> loaded checkpoint '{}' (epoch {})".format(latest_file, checkpoint['epoch']))
+    def load_checkpoint(self, epoch=None):
+        if epoch is not None:
+            checkpoint_path = os.path.join(self.exp_dir_path, CHECKPOINT_DIR,
+                                           'checkpoint_epoch_' + str(epoch) + '.' + CHECKPOINT_EXTENSION)
+            self._load_checkpoint_file(checkpoint_path)
         else:
-            print("=> no checkpoint found at '{}' folder".format(os.path.join(self.exp_dir_path, CHECKPOINT_DIR)))
+            all_files_path = os.path.join(self.exp_dir_path, CHECKPOINT_DIR, '*.' + CHECKPOINT_EXTENSION)
+            list_of_files = glob.glob(all_files_path)
+            if len(list_of_files) > 0:
+                checkpoint_path = max(list_of_files, key=os.path.getctime)
+                self._load_checkpoint_file(checkpoint_path)
+            else:
+                self.logWriter.log(
+                    "=> no checkpoint found at '{}' folder".format(os.path.join(self.exp_dir_path, CHECKPOINT_DIR)))
+
+    def _load_checkpoint_file(self, file_path):
+        self.logWriter.log("=> loading checkpoint '{}'".format(file_path))
+        checkpoint = torch.load(file_path)
+        self.start_epoch = checkpoint['epoch']
+        self.start_iteration = checkpoint['start_iteration']
+        self.model.load_state_dict(checkpoint['state_dict'])
+        self.optim.load_state_dict(checkpoint['optimizer'])
+
+        for state in self.optim.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(self.device)
+
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
+        self.logWriter.log("=> loaded checkpoint '{}' (epoch {})".format(file_path, checkpoint['epoch']))

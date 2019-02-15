@@ -88,8 +88,10 @@ class LogWriter(object):
         print("Dice Score...", end='', flush=True)
         ds = eu.dice_score_perclass(output, correct_labels, self.num_class)
         self.plot_dice_score(phase, 'dice_score_per_epoch', ds, 'Dice Score', epoch)
-
-        print("DONE", flush=True)
+        ds_mean = torch.mean(ds)
+        print("DONE", flush=True)Ï
+        return ds_mean.item()
+        
 
     def plot_dice_score(self, phase, caption, ds, title, step=None):
         fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')

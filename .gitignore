@@ -11,3 +11,4 @@ quickNAT_pytorch.egg-info/*
 other_packages/
 *.DS_Store
 documentation/
+.vscode/
