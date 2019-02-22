@@ -13,9 +13,9 @@ Let us know if you face any problems running the code by posting in Issues.
 
 If you use this code please cite:
 
-Guha Roy, A., Conjeti, S., Navab, N., and Wachinger, C. 2018. QuickNAT: Segmenting MRI Neuroanatomy in 20 seconds. Accepted for publication at **NeuroImage**.
+Guha Roy, A., Conjeti, S., Navab, N., and Wachinger, C. 2018. QuickNAT: A Fully Convolutional Network for Quick and Accurate Segmentation of Neuroanatomy. Accepted for publication at **NeuroImage**, https://arxiv.org/abs/1801.04161. 
  
- Link to paper: https://arxiv.org/abs/1801.04161 
+Online demo: http://quicknat.ai-med.de 
  
  Enjoy!!! :)
  
