@@ -1,4 +1,5 @@
 import itertools
+import logging
 import os
 import re
 import shutil
@@ -7,6 +8,7 @@ from textwrap import wrap
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from tensorboardX import SummaryWriter
 
 import utils.evaluator as eu
@@ -36,6 +38,12 @@ class LogWriter(object):
         self.curr_iter = 1
         self.cm_cmap = cm_cmap
         self.labels = self.beautify_labels(labels)
+        self.logger = logging.getLogger()
+        file_handler = logging.FileHandler("{0}/{1}.log".format(os.path.join(log_dir_name, exp_name), "console_logs"))
+        self.logger.addHandler(file_handler)
+
+    def log(self, text, phase='train'):
+        self.logger.info(text)
 
     def loss_per_iter(self, loss_value, i_batch, current_iteration):
         print('[Iteration : ' + str(i_batch) + '] Loss -> ' + str(loss_value))
@@ -89,9 +97,8 @@ class LogWriter(object):
         ds = eu.dice_score_perclass(output, correct_labels, self.num_class)
         self.plot_dice_score(phase, 'dice_score_per_epoch', ds, 'Dice Score', epoch)
         ds_mean = torch.mean(ds)
-        print("DONE", flush=True)Ï
+        print("DONE", flush=True)
         return ds_mean.item()
-        
 
     def plot_dice_score(self, phase, caption, ds, title, step=None):
         fig = matplotlib.figure.Figure(figsize=(8, 6), dpi=180, facecolor='w', edgecolor='k')

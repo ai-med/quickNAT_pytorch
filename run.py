@@ -117,6 +117,12 @@ if __name__ == '__main__':
     elif args.mode == 'eval':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
     elif args.mode == 'clear':
+        shutil.rmtree(os.path.join(common_params['exp_dir'], train_params['exp_name']))
+        print("Cleared current experiment directory successfully!!")
+        shutil.rmtree(os.path.join(common_params['log_dir'], train_params['exp_name']))
+        print("Cleared current log directory successfully!!")
+
+    elif args.mode == 'clear-all':
         delete_contents(common_params['exp_dir'])
         print("Cleared experiments directory successfully!!")
         delete_contents(common_params['log_dir'])

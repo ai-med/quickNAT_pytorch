@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 import torch
-from nn_additional_losses import losses as additional_losses
+from nn_common_modules import losses as additional_losses
 from torch.optim import lr_scheduler
 
 import utils.common_utils as common_utils
