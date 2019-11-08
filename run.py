@@ -99,10 +99,16 @@ def evaluate_bulk(eval_bulk):
     batch_size = eval_bulk['batch_size']
     view_agg = eval_bulk['view_agg']
 
-    if eval_bulk['view_agg'] is True:
+    if eval_bulk['view_agg'] == 'True':
         coronal_model_path = eval_bulk['coronal_model_path']
         axial_model_path = eval_bulk['axial_model_path']
-        eu.evaluate2view()
+        eu.evaluate2view(coronal_model_path,
+                         axial_model_path,
+                         volumes_txt_file,
+                         data_dir, device,
+                         prediction_path,
+                         batch_size,
+                         label_names)
     else:
         coronal_model_path = eval_bulk['coronal_model_path']
         eu.evaluate(coronal_model_path,
@@ -112,8 +118,7 @@ def evaluate_bulk(eval_bulk):
                     prediction_path,
                     batch_size,
                     "COR",
-                    label_names,
-                    view_agg)
+                    label_names)
 
 
 def delete_contents(folder):
