@@ -2,6 +2,7 @@ pip>=19.0
 matplotlib>2.0.0
 numpy>=1.14.0
 torch>=1.0.0
+torchvision
 nibabel>=2.3.0
 h5py>=2.8.0
 tensorboardX>=1.2

@@ -74,6 +74,7 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
     save_predictions_dir = eval_params['save_predictions_dir']
     prediction_path = os.path.join(exp_dir, exp_name, save_predictions_dir)
     orientation = eval_params['orientation']
+    data_id = eval_params['data_id']
 
     logWriter = LogWriter(num_classes, log_dir, exp_name, labels=labels)
 
@@ -85,6 +86,7 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
                                                         remap_config,
                                                         orientation,
                                                         prediction_path,
+                                                        data_id,
                                                         device,
                                                         logWriter)
     logWriter.close()
