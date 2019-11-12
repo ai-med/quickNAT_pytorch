@@ -129,31 +129,6 @@ def preprocess(volume, labelmap, remap_config, reduce_slices=False, remove_black
         return volume, labelmap, None, None
 
 
-def load_file_paths(data_dir, label_dir, volumes_txt_file=None):
-    """
-    This function returns the file paths combined as a list where each element is a 2 element tuple, 0th being data and 1st being label.
-    It should be modified to suit the need of the project
-    :param data_dir: Directory which contains the data files
-    :param label_dir: Directory which contains the label files
-    :param volumes_txt_file: (Optional) Path to the a csv file, when provided only these data points will be read
-    :return: list of file paths as string
-    """
-
-    volume_exclude_list = ['IXI290', 'IXI423']
-    if volumes_txt_file:
-        with open(volumes_txt_file) as file_handle:
-            volumes_to_use = file_handle.read().splitlines()
-    else:
-        volumes_to_use = [name for name in os.listdir(data_dir) if
-                          name.startswith('IXI') and name not in volume_exclude_list]
-
-    file_paths = [
-        [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol, 'mri/aseg.auto_noCCseg.mgz')]
-        for
-        vol in volumes_to_use]
-    return file_paths
-
-
 # def load_file_paths(data_dir, label_dir, volumes_txt_file=None):
 #     """
 #     This function returns the file paths combined as a list where each element is a 2 element tuple, 0th being data and 1st being label.
@@ -169,13 +144,59 @@ def load_file_paths(data_dir, label_dir, volumes_txt_file=None):
 #         with open(volumes_txt_file) as file_handle:
 #             volumes_to_use = file_handle.read().splitlines()
 #     else:
-#         volumes_to_use = [name for name in os.listdir(data_dir)]
+#         volumes_to_use = [name for name in os.listdir(data_dir) if
+#                           name.startswith('IXI') and name not in volume_exclude_list]
 #
 #     file_paths = [
-#         [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol+'_glm.mgz')]
+#         [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol, 'mri/aseg.auto_noCCseg.mgz')]
 #         for
 #         vol in volumes_to_use]
 #     return file_paths
+
+
+def load_file_paths(data_dir, label_dir, data_id, volumes_txt_file=None):
+    """
+    This function returns the file paths combined as a list where each element is a 2 element tuple, 0th being data and 1st being label.
+    It should be modified to suit the need of the project
+    :param data_dir: Directory which contains the data files
+    :param label_dir: Directory which contains the label files
+    :param data_id: A flag indicates the name of Dataset for proper file reading
+    :param volumes_txt_file: (Optional) Path to the a csv file, when provided only these data points will be read
+    :return: list of file paths as string
+    """
+
+    if volumes_txt_file:
+        with open(volumes_txt_file) as file_handle:
+            volumes_to_use = file_handle.read().splitlines()
+    else:
+        volumes_to_use = [name for name in os.listdir(data_dir)]
+
+    if data_id == "MALC":
+        file_paths = [
+            [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol + '_glm.mgz')]
+            for
+            vol in volumes_to_use]
+    elif data_id == "ADNI":
+        file_paths = [
+            [os.path.join(data_dir, vol, 'orig.mgz'), os.path.join(label_dir, vol, 'Lab_con.mgz')]
+            for
+            vol in volumes_to_use]
+    elif data_id == "CANDI":
+        file_paths = [
+            [os.path.join(data_dir, vol + '/' + vol + '_1.mgz'),
+             os.path.join(label_dir, vol + '/' + vol + '_1_seg.mgz')]
+            for
+            vol in volumes_to_use]
+    elif data_id == "IBSR":
+        file_paths = [
+            [os.path.join(data_dir, vol, 'mri/orig.mgz'), os.path.join(label_dir, vol + '_map.nii.gz')]
+            for
+            vol in volumes_to_use]
+    else:
+        raise ValueError("Invalid entry, valid options are MALC, ADNI, CANDI and IBSR")
+
+    return file_paths
+
 
 def load_file_paths_eval(data_dir, volumes_txt_file):
     """

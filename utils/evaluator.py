@@ -49,8 +49,49 @@ def compute_volume(prediction_map, label_map, ID):
     return volume_dict
 
 
+def _write_csv_table(name, prediction_path, dict_list, label_names):
+    file_name = name
+    file_path = os.path.join(prediction_path, file_name)
+    # Save volume_dict as csv file in the prediction_path
+    with open(file_path, 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=label_names)
+        writer.writeheader()
+
+        for data in dict_list:
+            writer.writerow(data)
+
+
+def compute_structure_uncertainty(mc_pred_list, label_map, ID):
+    num_cls = len(label_map) - 1
+    cvs_dict = {}
+    cvs_dict['vol_ID'] = ID
+    iou_dict = {}
+    iou_dict['vol_ID'] = ID
+
+    for c in range(num_cls):
+        mc_vol = []
+        inter = (mc_pred_list[0] == c).astype('int')
+        union = (mc_pred_list[0] == c).astype('int')
+        mc_vol.append(inter.sum())
+        for s in range(1, len(mc_pred_list)):
+            nxt = (mc_pred_list[s] == c).astype('int')
+            mc_vol.append(nxt.sum())
+            inter = np.multiply(inter, nxt)
+            union = (np.add(union, nxt) > 0).astype('int')
+        s_inter, s_union = np.sum(inter), np.sum(union)
+        if s_inter == 0 and s_union == 0:
+            iou_dict[label_map[c + 1]] = 1
+        elif s_inter > 0 and s_union == 0 or s_inter == 0 and s_union > 0:
+            iou_dict[label_map[c + 1]] = 0
+        else:
+            iou_dict[label_map[c + 1]] = np.divide(s_inter, s_union)
+        mc_vol = np.array(mc_vol)
+        cvs_dict[label_map[c + 1]] = np.std(mc_vol) / np.mean(mc_vol)
+    return iou_dict, cvs_dict
+
+
 def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_txt_file, remap_config, orientation,
-                        prediction_path, device=0, logWriter=None, mode='eval'):
+                        prediction_path, data_id, device=0, logWriter=None, mode='eval'):
     print("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
 
     batch_size = 20
@@ -69,7 +110,7 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
     common_utils.create_if_not(prediction_path)
     volume_dice_score_list = []
     print("Evaluating now...")
-    file_paths = du.load_file_paths(data_dir, label_dir, volumes_txt_file)
+    file_paths = du.load_file_paths(data_dir, label_dir, data_id, volumes_txt_file)
     with torch.no_grad():
         for vol_idx, file_path in enumerate(file_paths):
             volume, labelmap, class_weights, weights, header = du.load_and_preprocess(file_path,
@@ -141,12 +182,54 @@ def _segment_vol(file_path, model, orientation, batch_size, cuda_available, devi
         volume_prediction = volume_prediction.transpose((2, 0, 1))
         volume_pred = volume_pred.permute((3, 1, 0, 2))
 
-
     return volume_pred, volume_prediction, header
 
 
+def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda_available, device):
+    volume, header = du.load_and_preprocess_eval(file_path,
+                                                 orientation=orientation)
+
+    volume = volume if len(volume.shape) == 4 else volume[:, np.newaxis, :, :]
+    volume = torch.tensor(volume).type(torch.FloatTensor)
+
+    mc_pred_list = []
+    for j in range(mc_samples):
+        volume_pred = []
+        for i in range(0, len(volume), batch_size):
+            batch_x = volume[i: i + batch_size]
+            if cuda_available:
+                batch_x = batch_x.cuda(device)
+            out = model.predict(batch_x, enable_dropout=True, out_prob=True)
+            # _, batch_output = torch.max(out, dim=1)
+            volume_pred.append(out)
+
+        volume_pred = torch.cat(volume_pred)
+        _, volume_prediction = torch.max(volume_pred, dim=1)
+
+        volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
+        volume_prediction = np.squeeze(volume_prediction)
+        if orientation == "COR":
+            volume_prediction = volume_prediction.transpose((1, 2, 0))
+            volume_pred = volume_pred.permute((2, 1, 3, 0))
+        elif orientation == "AXI":
+            volume_prediction = volume_prediction.transpose((2, 0, 1))
+            volume_pred = volume_pred.permute((3, 1, 0, 2))
+
+        mc_pred_list.append(volume_prediction)
+        if j == 0:
+            expected_pred = (1 / mc_samples) * volume_pred
+        else:
+            expected_pred += (1 / mc_samples) * volume_pred
+
+        _, final_seg = torch.max(expected_pred, dim=1)
+        final_seg = (final_seg.cpu().numpy()).astype('float32')
+        final_seg = np.squeeze(final_seg)
+
+    return expected_pred, final_seg, mc_pred_list, header
+
+
 def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size, orientation,
-             label_names):
+             label_names, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
@@ -165,30 +248,37 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
 
     with torch.no_grad():
         volume_dict_list = []
+        cvs_dict_list = []
+        iou_dict_list = []
         for vol_idx, file_path in enumerate(file_paths):
-            _, volume_prediction, header = _segment_vol(file_path, model, orientation, batch_size, cuda_available,
-                                                        device)
+            if need_unc == "True":
+                _, volume_prediction, mc_pred_list, header = _segment_vol_unc(file_path, model, orientation,
+                                                                              batch_size, mc_samples,
+                                                                              cuda_available, device)
+                iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names, volumes_to_use[vol_idx])
+                cvs_dict_list.append(cvs_dict)
+                iou_dict_list.append(iou_dict)
+            else:
+                _, volume_prediction, header = _segment_vol(file_path, model, orientation, batch_size, cuda_available,
+                                                            device)
 
-            nifti_img = nib.MGHImage(volume_prediction, np.eye(4), header=header)
-            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.mgz')))
+            nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
+            print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(len(file_paths)))
+            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
             per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
             volume_dict_list.append(per_volume_dict)
 
-        file_name = 'volume_estimates.csv'
-        file_path = os.path.join(prediction_path, file_name)
-        # Save volume_dict as csv file in the prediction_path
-        with open(file_path, 'w') as f:
-            writer = csv.DictWriter(f, fieldnames=label_names)
-            writer.writeheader()
+        _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
-            for data in volume_dict_list:
-                writer.writerow(data)
+        if need_unc == "True":
+            _write_csv_table('cvs_uncertainty.csv', prediction_path, cvs_dict_list, label_names)
+            _write_csv_table('iou_uncertainty.csv', prediction_path, iou_dict_list, label_names)
 
     print("DONE")
 
 
 def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size,
-                  label_names):
+                  label_names, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
@@ -210,34 +300,41 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
 
     with torch.no_grad():
         volume_dict_list = []
+        cvs_dict_list = []
+        iou_dict_list = []
         for vol_idx, file_path in enumerate(file_paths):
-            volume_prediction_cor, _, header = _segment_vol(file_path, model1, "COR", batch_size, cuda_available,
-                                                            device)
-            volume_prediction_axi, _, header = _segment_vol(file_path, model2, "AXI", batch_size, cuda_available,
-                                                            device)
+            if need_unc == "True":
+                volume_prediction_cor, _, mc_pred_list_cor, header = _segment_vol_unc(file_path, model1, "COR",
+                                                                              batch_size, mc_samples,
+                                                                              cuda_available, device)
+                volume_prediction_axi, _, mc_pred_list_axi, header = _segment_vol_unc(file_path, model2, "AXI",
+                                                                                  batch_size, mc_samples,
+                                                                                  cuda_available, device)
+                mc_pred_list = mc_pred_list_cor + mc_pred_list_axi
+                iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names, volumes_to_use[vol_idx])
+                cvs_dict_list.append(cvs_dict)
+                iou_dict_list.append(iou_dict)
+            else:
+                volume_prediction_cor, _, header = _segment_vol(file_path, model1, "COR", batch_size, cuda_available,
+                                                                device)
+                volume_prediction_axi, _, header = _segment_vol(file_path, model2, "AXI", batch_size, cuda_available,
+                                                                device)
+
             _, volume_prediction = torch.max(volume_prediction_axi + volume_prediction_cor, dim=1)
             volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
             volume_prediction = np.squeeze(volume_prediction)
-            nifti_img = nib.MGHImage(volume_prediction, np.eye(4), header=header)
-            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.mgz')))
-
-            # nifti_img = nib.MGHImage(temp_cor, np.eye(4), header=header)
-            # nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('_cor.mgz')))
-            #
-            # nifti_img = nib.MGHImage(temp_ax, np.eye(4), header=header)
-            # nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('_ax.mgz')))
+            nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
+            print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(len(file_paths)))
+            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
 
             per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
             volume_dict_list.append(per_volume_dict)
 
-        file_name = 'volume_estimates.csv'
-        file_path = os.path.join(prediction_path, file_name)
-        # Save volume_dict as csv file in the prediction_path
-        with open(file_path, 'w') as f:
-            writer = csv.DictWriter(f, fieldnames=label_names)
-            writer.writeheader()
+        _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
-            for data in volume_dict_list:
-                writer.writerow(data)
+        if need_unc == "True":
+            _write_csv_table('cvs_uncertainty.csv', prediction_path, cvs_dict_list, label_names)
+            _write_csv_table('iou_uncertainty.csv', prediction_path, iou_dict_list, label_names)
+
 
     print("DONE")

@@ -1,7 +1,7 @@
 """
 Convert to h5 utility.
 Sample command to create new dataset
-- python utils/convert_h5.py -dd /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge/FS -ld /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge -trv datasets/train_volumes.txt -tev datasets/test_volumes.txt -rc Neo -o COR -df datasets/MALC/coronal
+- python3 utils/convert_h5.py -dd /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge/FS -ld /home/masterthesis/shayan/nas_drive/Data_Neuro/OASISchallenge -trv datasets/train_volumes.txt -tev datasets/test_volumes.txt -id MALC -rc Neo -o COR -df datasets/MALC/coronal
 - python utils/convert_h5.py -dd /home/masterthesis/shayan/nas_drive/Data_Neuro/IXI/IXI_FS -ld /home/masterthesis/shayan/nas_drive/Data_Neuro/IXI/IXI_FS -ds 98,2 -rc FS -o COR -df datasets/IXI/coronal
 """
 
@@ -13,7 +13,7 @@ import numpy as np
 
 import common_utils
 import data_utils as du
-import preprocessor
+import preprocessor as preprocessor
 
 
 def apply_split(data_split, data_dir, label_dir):
@@ -41,14 +41,14 @@ def _write_h5(data, label, class_weights, weights, f, mode):
             class_weights).reshape((-1, H, W)))
 
 
-def convert_h5(data_dir, label_dir, data_split, train_volumes, test_volumes, f, remap_config='Neo',
+def convert_h5(data_dir, label_dir, data_split, train_volumes, test_volumes, f, data_id, remap_config='Neo',
                orientation=preprocessor.ORIENTATION['coronal']):
     # Data splitting
     if data_split:
         train_file_paths, test_file_paths = apply_split(data_split, data_dir, label_dir)
     elif train_volumes and test_volumes:
-        train_file_paths = du.load_file_paths(data_dir, label_dir, train_volumes)
-        test_file_paths = du.load_file_paths(data_dir, label_dir, test_volumes)
+        train_file_paths = du.load_file_paths(data_dir, label_dir, data_id, train_volumes)
+        test_file_paths = du.load_file_paths(data_dir, label_dir, data_id, test_volumes)
     else:
         raise ValueError('You must either provide the split ratio or a train, train dataset list')
 
@@ -89,6 +89,7 @@ if __name__ == "__main__":
                         help='Path to a text file containing the list of volumes to be used for training')
     parser.add_argument('--test_volumes', '-tev', required=False,
                         help='Path to a text file containing the list of volumes to be used for testing')
+    parser.add_argument('--data_id', '-id', required=True, help='Valid options are "MALC", "ADNI", "CANDI" and "IBSR"')
     parser.add_argument('--remap_config', '-rc', required=True, help='Valid options are "FS" and "Neo"')
     parser.add_argument('--orientation', '-o', required=True, help='Valid options are COR, AXI, SAG')
     parser.add_argument('--destination_folder', '-df', required=True, help='Path where to generate the h5 files')
@@ -113,6 +114,7 @@ if __name__ == "__main__":
     }
 
     convert_h5(args.data_dir, args.label_dir, args.data_split, args.train_volumes, args.test_volumes, f,
+               args.data_id,
                args.remap_config,
                args.orientation)
     print("* Finish *")

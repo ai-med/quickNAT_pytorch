@@ -99,7 +99,8 @@ def evaluate_bulk(eval_bulk):
     device = eval_bulk['device']
     label_names = eval_bulk['labels']
     batch_size = eval_bulk['batch_size']
-    view_agg = eval_bulk['view_agg']
+    need_unc = eval_bulk['estimate_uncertainty']
+    mc_samples = eval_bulk['mc_samples']
 
     if eval_bulk['view_agg'] == 'True':
         coronal_model_path = eval_bulk['coronal_model_path']
@@ -110,7 +111,9 @@ def evaluate_bulk(eval_bulk):
                          data_dir, device,
                          prediction_path,
                          batch_size,
-                         label_names)
+                         label_names,
+                         need_unc,
+                         mc_samples)
     else:
         coronal_model_path = eval_bulk['coronal_model_path']
         eu.evaluate(coronal_model_path,
@@ -120,7 +123,9 @@ def evaluate_bulk(eval_bulk):
                     prediction_path,
                     batch_size,
                     "COR",
-                    label_names)
+                    label_names,
+                    need_unc,
+                    mc_samples)
 
 
 def delete_contents(folder):
@@ -140,20 +145,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', '-m', required=True, help='run mode, valid values are train and eval')
     args = parser.parse_args()
-
-    settings = Settings()
-    common_params, data_params, net_params, train_params, eval_params, eval_bulk = settings['COMMON'], settings['DATA'], \
-                                                                                   settings[
-                                                                                       'NETWORK'], settings['TRAINING'], \
-                                                                                   settings['EVAL'], settings[
-                                                                                       'EVAL_BULK']
-
+    settings = Settings('settings.ini')
+    common_params, data_params, net_params, train_params, eval_params = settings['COMMON'], settings['DATA'], \
+                                                                        settings[
+                                                                            'NETWORK'], settings['TRAINING'], \
+                                                                        settings['EVAL']
     if args.mode == 'train':
         train(train_params, common_params, data_params, net_params)
     elif args.mode == 'eval':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
     elif args.mode == 'eval_bulk':
-        evaluate_bulk(eval_bulk)
+        settings_eval = Settings('settings_eval.ini')
+        evaluate_bulk(settings_eval['EVAL_BULK'])
     elif args.mode == 'clear':
         shutil.rmtree(os.path.join(common_params['exp_dir'], train_params['exp_name']))
         print("Cleared current experiment directory successfully!!")
