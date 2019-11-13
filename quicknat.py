@@ -90,7 +90,7 @@ class QuickNat(nn.Module):
         print('Saving model... %s' % path)
         torch.save(self, path)
 
-    def predict(self, X, device=0, enable_dropout=False):
+    def predict(self, X, device=0, enable_dropout=False, out_prob=False):
         """
         Predicts the outout after the model is trained.
         Inputs:
@@ -109,8 +109,11 @@ class QuickNat(nn.Module):
         with torch.no_grad():
             out = self.forward(X)
 
-        max_val, idx = torch.max(out, 1)
-        idx = idx.data.cpu().numpy()
-        prediction = np.squeeze(idx)
-        del X, out, idx, max_val
-        return prediction
+        if out_prob:
+            return out
+        else:
+            max_val, idx = torch.max(out, 1)
+            idx = idx.data.cpu().numpy()
+            prediction = np.squeeze(idx)
+            del X, out, idx, max_val
+            return prediction
