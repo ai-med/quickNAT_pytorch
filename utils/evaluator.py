@@ -1,5 +1,5 @@
 import os
-
+from quicknat import QuickNat
 import nibabel as nib
 import numpy as np
 import torch
@@ -192,6 +192,7 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
     volume = volume if len(volume.shape) == 4 else volume[:, np.newaxis, :, :]
     volume = torch.tensor(volume).type(torch.FloatTensor)
 
+
     mc_pred_list = []
     for j in range(mc_samples):
         volume_pred = []
@@ -229,12 +230,13 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
 
 
 def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size, orientation,
-             label_names, need_unc=False, mc_samples=0):
+             label_names, dir_struct, net_params, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model = torch.load(coronal_model_path)
+    model = QuickNat(net_params)
+    model.load_state_dict(torch.load(coronal_model_path))
     cuda_available = torch.cuda.is_available()
     if cuda_available:
         torch.cuda.empty_cache()
@@ -244,7 +246,7 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
 
     common_utils.create_if_not(prediction_path)
     print("Evaluating now...")
-    file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file)
+    file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file, dir_struct)
 
     with torch.no_grad():
         volume_dict_list = []
@@ -278,13 +280,17 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
 
 
 def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size,
-                  label_names, need_unc=False, mc_samples=0):
+                  label_names, dir_struct, net_params, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model1 = torch.load(coronal_model_path)
-    model2 = torch.load(axial_model_path)
+    model1 = QuickNat(net_params)
+    model1.load_state_dict(torch.load(coronal_model_path))
+
+    model2 = QuickNat(net_params)
+    model2.load_state_dict(torch.load(axial_model_path))
+
     cuda_available = torch.cuda.is_available()
     if cuda_available:
         torch.cuda.empty_cache()
@@ -296,7 +302,7 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
 
     common_utils.create_if_not(prediction_path)
     print("Evaluating now...")
-    file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file)
+    file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file, dir_struct)
 
     with torch.no_grad():
         volume_dict_list = []

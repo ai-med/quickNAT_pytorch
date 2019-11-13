@@ -198,20 +198,28 @@ def load_file_paths(data_dir, label_dir, data_id, volumes_txt_file=None):
     return file_paths
 
 
-def load_file_paths_eval(data_dir, volumes_txt_file):
+def load_file_paths_eval(data_dir, volumes_txt_file, dir_struct):
     """
     This function returns the file paths combined as a list where each element is a 2 element tuple, 0th being data and 1st being label.
     It should be modified to suit the need of the project
     :param data_dir: Directory which contains the data files
-    :param volumes_txt_file: (Optional) Path to the a csv file, when provided only these data points will be read
+    :param volumes_txt_file:  Path to the a csv file, when provided only these data points will be read
+    :param dir_struct: If the id_list is in FreeSurfer style or normal
     :return: list of file paths as string
     """
 
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
-
-    file_paths = [
-        [os.path.join(data_dir, vol, 'mri/orig.mgz')]
-        for
-        vol in volumes_to_use]
+    if dir_struct == "FS":
+        file_paths = [
+            [os.path.join(data_dir, vol, 'mri/orig.mgz')]
+            for
+            vol in volumes_to_use]
+    elif dir_struct == "Linear":
+        file_paths = [
+            [os.path.join(data_dir, vol)]
+            for
+            vol in volumes_to_use]
+    else:
+        raise ValueError("Invalid entry, valid options are FS and Linear")
     return file_paths

@@ -92,7 +92,7 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
     logWriter.close()
 
 
-def evaluate_bulk(eval_bulk):
+def evaluate_bulk(net_params, eval_bulk):
     data_dir = eval_bulk['data_dir']
     prediction_path = eval_bulk['save_predictions_dir']
     volumes_txt_file = eval_bulk['volumes_txt_file']
@@ -101,6 +101,7 @@ def evaluate_bulk(eval_bulk):
     batch_size = eval_bulk['batch_size']
     need_unc = eval_bulk['estimate_uncertainty']
     mc_samples = eval_bulk['mc_samples']
+    dir_struct = eval_bulk['directory_struct']
 
     if eval_bulk['view_agg'] == 'True':
         coronal_model_path = eval_bulk['coronal_model_path']
@@ -112,6 +113,8 @@ def evaluate_bulk(eval_bulk):
                          prediction_path,
                          batch_size,
                          label_names,
+                         dir_struct,
+                         net_params,
                          need_unc,
                          mc_samples)
     else:
@@ -124,6 +127,8 @@ def evaluate_bulk(eval_bulk):
                     batch_size,
                     "COR",
                     label_names,
+                    dir_struct,
+                    net_params,
                     need_unc,
                     mc_samples)
 
@@ -156,7 +161,7 @@ if __name__ == '__main__':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
     elif args.mode == 'eval_bulk':
         settings_eval = Settings('settings_eval.ini')
-        evaluate_bulk(settings_eval['EVAL_BULK'])
+        evaluate_bulk(net_params, settings_eval['EVAL_BULK'])
     elif args.mode == 'clear':
         shutil.rmtree(os.path.join(common_params['exp_dir'], train_params['exp_name']))
         print("Cleared current experiment directory successfully!!")
