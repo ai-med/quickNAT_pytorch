@@ -62,7 +62,7 @@ python run.py --mode=eval
 
 ## Evaluating the model in bulk
 
-Execute the following command:
+Execute the following command for deploying on large datasets:
 ```
 python run.py --mode=eval_bulk
 ```
@@ -70,6 +70,11 @@ This saves the segmentation files at nifti files in the destination folder. Also
 
 Also uncertainty flag is set, another two '.csv' files are created with structure-wise uncertainty (CVs and IoU) for quality control of the segmentations. Please refer to the "Bayesian QuickNAT" paper for details.
 
+**Pre-processing**: Before deploying our model you need to standardize the MRI scans. Use the following command from FreeSurfer 
+```
+mri_convert --conform <input_volume.nii> <out_volume.nii>
+```
+The above command standardizes the alignment for QuickNAT, re-samples to isotrophic resolution (256x256x256) with some contrast enhamcement. It takes about one second per volume.
 
 You need to modify the following entries in 'settings_eval.ini' file in the repo.
 
