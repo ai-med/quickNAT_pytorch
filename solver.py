@@ -170,6 +170,7 @@ class Solver(object):
         - path: path string
         """
         print('Saving model... %s' % path)
+        print('Best Model at Epoch: ' + str(self.best_ds_mean_epoch))
         self.load_checkpoint(self.best_ds_mean_epoch)
 
         torch.save(self.model, path)

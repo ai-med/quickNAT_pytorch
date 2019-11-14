@@ -22,7 +22,7 @@ def estimate_weights_mfb(labels):
     class_weights = np.zeros_like(labels)
     unique, counts = np.unique(labels, return_counts=True)
     median_freq = np.median(counts)
-    weights = np.zeros(len(unique))
+    weights = np.zeros(33)
     for i, label in enumerate(unique):
         class_weights += (median_freq // counts[i]) * np.array(labels == label)
         weights[int(label)] = median_freq // counts[i]
