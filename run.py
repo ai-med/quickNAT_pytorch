@@ -1,8 +1,6 @@
 import argparse
 import os
-
 import torch
-
 import utils.evaluator as eu
 from quicknat import QuickNat
 from settings import Settings
@@ -97,7 +95,13 @@ def evaluate_bulk(net_params, eval_bulk):
     prediction_path = eval_bulk['save_predictions_dir']
     volumes_txt_file = eval_bulk['volumes_txt_file']
     device = eval_bulk['device']
-    label_names = eval_bulk['labels']
+    label_names = ["vol_ID", "Background", "Left WM", "Left Cortex", "Left Lateral ventricle", "Left Inf LatVentricle",
+                   "Left Cerebellum WM", "Left Cerebellum Cortex", "Left Thalamus", "Left Caudate", "Left Putamen",
+                   "Left Pallidum", "3rd Ventricle", "4th Ventricle", "Brain Stem", "Left Hippocampus", "Left Amygdala",
+                   "CSF (Cranial)", "Left Accumbens", "Left Ventral DC", "Right WM", "Right Cortex",
+                   "Right Lateral Ventricle", "Right Inf LatVentricle", "Right Cerebellum WM",
+                   "Right Cerebellum Cortex", "Right Thalamus", "Right Caudate", "Right Putamen", "Right Pallidum",
+                   "Right Hippocampus", "Right Amygdala", "Right Accumbens", "Right Ventral DC"]
     batch_size = eval_bulk['batch_size']
     need_unc = eval_bulk['estimate_uncertainty']
     mc_samples = eval_bulk['mc_samples']
