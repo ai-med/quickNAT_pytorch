@@ -235,8 +235,7 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model = QuickNat(net_params)
-    model.load_state_dict(torch.load(coronal_model_path))
+    model = torch.load(coronal_model_path)
     cuda_available = torch.cuda.is_available()
     if cuda_available:
         torch.cuda.empty_cache()
@@ -285,11 +284,9 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model1 = QuickNat(net_params)
-    model1.load_state_dict(torch.load(coronal_model_path))
+    model1 = torch.load(coronal_model_path)
 
-    model2 = QuickNat(net_params)
-    model2.load_state_dict(torch.load(axial_model_path))
+    model2 = torch.load(axial_model_path)
 
     cuda_available = torch.cuda.is_available()
     if cuda_available:
