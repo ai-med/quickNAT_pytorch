@@ -220,6 +220,11 @@ def load_file_paths_eval(data_dir, volumes_txt_file, dir_struct):
             [os.path.join(data_dir, vol)]
             for
             vol in volumes_to_use]
+    elif dir_struct == "part_FS":
+        file_paths = [
+            [os.path.join(data_dir, vol, 'orig.mgz')]
+            for
+            vol in volumes_to_use]
     else:
         raise ValueError("Invalid entry, valid options are FS and Linear")
     return file_paths
