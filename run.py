@@ -90,7 +90,7 @@ def evaluate(eval_params, net_params, data_params, common_params, train_params):
     logWriter.close()
 
 
-def evaluate_bulk(net_params, eval_bulk):
+def evaluate_bulk(eval_bulk):
     data_dir = eval_bulk['data_dir']
     prediction_path = eval_bulk['save_predictions_dir']
     volumes_txt_file = eval_bulk['volumes_txt_file']
@@ -118,7 +118,6 @@ def evaluate_bulk(net_params, eval_bulk):
                          batch_size,
                          label_names,
                          dir_struct,
-                         net_params,
                          need_unc,
                          mc_samples)
     else:
@@ -132,9 +131,22 @@ def evaluate_bulk(net_params, eval_bulk):
                     "COR",
                     label_names,
                     dir_struct,
-                    net_params,
                     need_unc,
                     mc_samples)
+
+def compute_vol(eval_bulk):
+    prediction_path = eval_bulk['save_predictions_dir']
+    label_names = ["vol_ID", "Background", "Left WM", "Left Cortex", "Left Lateral ventricle", "Left Inf LatVentricle",
+                   "Left Cerebellum WM", "Left Cerebellum Cortex", "Left Thalamus", "Left Caudate", "Left Putamen",
+                   "Left Pallidum", "3rd Ventricle", "4th Ventricle", "Brain Stem", "Left Hippocampus", "Left Amygdala",
+                   "CSF (Cranial)", "Left Accumbens", "Left Ventral DC", "Right WM", "Right Cortex",
+                   "Right Lateral Ventricle", "Right Inf LatVentricle", "Right Cerebellum WM",
+                   "Right Cerebellum Cortex", "Right Thalamus", "Right Caudate", "Right Putamen", "Right Pallidum",
+                   "Right Hippocampus", "Right Amygdala", "Right Accumbens", "Right Ventral DC"]
+    volumes_txt_file = eval_bulk['volumes_txt_file']
+
+    eu.compute_vol_bulk(prediction_path, "Linear", label_names, volumes_txt_file)
+
 
 
 def delete_contents(folder):
@@ -153,7 +165,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', '-m', required=True, help='run mode, valid values are train and eval')
+    parser.add_argument('--setting_path', '-sp', required=False, help='optional path to settings_eval.ini')
     args = parser.parse_args()
+
     settings = Settings('settings.ini')
     common_params, data_params, net_params, train_params, eval_params = settings['COMMON'], settings['DATA'], \
                                                                         settings[
@@ -164,8 +178,11 @@ if __name__ == '__main__':
     elif args.mode == 'eval':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
     elif args.mode == 'eval_bulk':
-        settings_eval = Settings('settings_eval.ini')
-        evaluate_bulk(net_params, settings_eval['EVAL_BULK'])
+        if args.setting_path is not None:
+            settings_eval = Settings(args.setting_path)
+        else:
+            settings_eval = Settings('settings_eval.ini')
+        evaluate_bulk(settings_eval['EVAL_BULK'])
     elif args.mode == 'clear':
         shutil.rmtree(os.path.join(common_params['exp_dir'], train_params['exp_name']))
         print("Cleared current experiment directory successfully!!")
@@ -177,5 +194,12 @@ if __name__ == '__main__':
         print("Cleared experiments directory successfully!!")
         delete_contents(common_params['log_dir'])
         print("Cleared logs directory successfully!!")
+
+    elif args.mode == 'compute_vol':
+        if args.setting_path is not None:
+            settings_eval = Settings(args.setting_path)
+        else:
+            settings_eval = Settings('settings_eval.ini')
+        compute_vol(settings_eval['EVAL_BULK'])
     else:
         raise ValueError('Invalid value for mode. only support values are train, eval and clear')

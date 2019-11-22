@@ -192,7 +192,6 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
     volume = volume if len(volume.shape) == 4 else volume[:, np.newaxis, :, :]
     volume = torch.tensor(volume).type(torch.FloatTensor)
 
-
     mc_pred_list = []
     for j in range(mc_samples):
         volume_pred = []
@@ -229,8 +228,27 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
     return expected_pred, final_seg, mc_pred_list, header
 
 
+def compute_vol_bulk(prediction_dir, dir_struct, label_names, volumes_txt_file):
+    print("**Computing volume estimates**")
+
+    with open(volumes_txt_file) as file_handle:
+        volumes_to_use = file_handle.read().splitlines()
+
+    file_paths = du.load_file_paths_eval(prediction_dir, volumes_txt_file, dir_struct)
+
+    volume_dict_list = []
+
+    for vol_idx, file_path in enumerate(file_paths):
+        volume_prediction, header = du.load_and_preprocess_eval(file_path, "SAG")
+        per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
+        volume_dict_list.append(per_volume_dict)
+
+    _write_csv_table('volume_estimates.csv', prediction_dir, volume_dict_list, label_names)
+    print("**DONE**")
+
+
 def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size, orientation,
-             label_names, dir_struct, net_params, need_unc=False, mc_samples=0):
+             label_names, dir_struct, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
@@ -252,22 +270,28 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
         cvs_dict_list = []
         iou_dict_list = []
         for vol_idx, file_path in enumerate(file_paths):
-            if need_unc == "True":
-                _, volume_prediction, mc_pred_list, header = _segment_vol_unc(file_path, model, orientation,
-                                                                              batch_size, mc_samples,
-                                                                              cuda_available, device)
-                iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names, volumes_to_use[vol_idx])
-                cvs_dict_list.append(cvs_dict)
-                iou_dict_list.append(iou_dict)
-            else:
-                _, volume_prediction, header = _segment_vol(file_path, model, orientation, batch_size, cuda_available,
-                                                            device)
+            try:
+                if need_unc == "True":
+                    _, volume_prediction, mc_pred_list, header = _segment_vol_unc(file_path, model, orientation,
+                                                                                  batch_size, mc_samples,
+                                                                                  cuda_available, device)
+                    iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names,
+                                                                       volumes_to_use[vol_idx])
+                    cvs_dict_list.append(cvs_dict)
+                    iou_dict_list.append(iou_dict)
+                else:
+                    _, volume_prediction, header = _segment_vol(file_path, model, orientation, batch_size,
+                                                                cuda_available,
+                                                                device)
 
-            nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
-            print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(len(file_paths)))
-            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
-            per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
-            volume_dict_list.append(per_volume_dict)
+                nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
+                print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
+                    len(file_paths)))
+                nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
+                per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
+                volume_dict_list.append(per_volume_dict)
+            except FileNotFoundError:
+                print("Error in reading the file ...")
 
         _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
@@ -279,7 +303,7 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
 
 
 def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size,
-                  label_names, dir_struct, net_params, need_unc=False, mc_samples=0):
+                  label_names, dir_struct, need_unc=False, mc_samples=0):
     print("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
@@ -299,6 +323,7 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
 
     common_utils.create_if_not(prediction_path)
     print("Evaluating now...")
+
     file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file, dir_struct)
 
     with torch.no_grad():
@@ -306,38 +331,45 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
         cvs_dict_list = []
         iou_dict_list = []
         for vol_idx, file_path in enumerate(file_paths):
-            if need_unc == "True":
-                volume_prediction_cor, _, mc_pred_list_cor, header = _segment_vol_unc(file_path, model1, "COR",
-                                                                              batch_size, mc_samples,
-                                                                              cuda_available, device)
-                volume_prediction_axi, _, mc_pred_list_axi, header = _segment_vol_unc(file_path, model2, "AXI",
-                                                                                  batch_size, mc_samples,
-                                                                                  cuda_available, device)
-                mc_pred_list = mc_pred_list_cor + mc_pred_list_axi
-                iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names, volumes_to_use[vol_idx])
-                cvs_dict_list.append(cvs_dict)
-                iou_dict_list.append(iou_dict)
-            else:
-                volume_prediction_cor, _, header = _segment_vol(file_path, model1, "COR", batch_size, cuda_available,
-                                                                device)
-                volume_prediction_axi, _, header = _segment_vol(file_path, model2, "AXI", batch_size, cuda_available,
-                                                                device)
+            try:
+                if need_unc == "True":
+                    volume_prediction_cor, _, mc_pred_list_cor, header = _segment_vol_unc(file_path, model1, "COR",
+                                                                                          batch_size, mc_samples,
+                                                                                          cuda_available, device)
+                    volume_prediction_axi, _, mc_pred_list_axi, header = _segment_vol_unc(file_path, model2, "AXI",
+                                                                                          batch_size, mc_samples,
+                                                                                          cuda_available, device)
+                    mc_pred_list = mc_pred_list_cor + mc_pred_list_axi
+                    iou_dict, cvs_dict = compute_structure_uncertainty(mc_pred_list, label_names,
+                                                                       volumes_to_use[vol_idx])
+                    cvs_dict_list.append(cvs_dict)
+                    iou_dict_list.append(iou_dict)
+                else:
+                    volume_prediction_cor, _, header = _segment_vol(file_path, model1, "COR", batch_size,
+                                                                    cuda_available,
+                                                                    device)
+                    volume_prediction_axi, _, header = _segment_vol(file_path, model2, "AXI", batch_size,
+                                                                    cuda_available,
+                                                                    device)
 
-            _, volume_prediction = torch.max(volume_prediction_axi + volume_prediction_cor, dim=1)
-            volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
-            volume_prediction = np.squeeze(volume_prediction)
-            nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
-            print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(len(file_paths)))
-            nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
+                _, volume_prediction = torch.max(volume_prediction_axi + volume_prediction_cor, dim=1)
+                volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
+                volume_prediction = np.squeeze(volume_prediction)
+                nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
+                print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
+                    len(file_paths)))
+                nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
 
-            per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
-            volume_dict_list.append(per_volume_dict)
+                per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
+                volume_dict_list.append(per_volume_dict)
+
+            except FileNotFoundError:
+                print("Error in reading the file ...")
 
         _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
         if need_unc == "True":
             _write_csv_table('cvs_uncertainty.csv', prediction_path, cvs_dict_list, label_names)
             _write_csv_table('iou_uncertainty.csv', prediction_path, iou_dict_list, label_names)
-
 
     print("DONE")
