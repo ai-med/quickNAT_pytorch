@@ -98,6 +98,8 @@ def load_and_preprocess_eval(file_path, orientation, notlabel=True):
     volume = volume_nifty.get_fdata()
     if notlabel:
         volume = (volume - np.min(volume)) / (np.max(volume) - np.min(volume))
+    else:
+        volume = np.round(volume)
     if orientation == "COR":
         volume = volume.transpose((2, 0, 1))
     elif orientation == "AXI":
