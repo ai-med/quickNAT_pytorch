@@ -92,11 +92,12 @@ def load_and_preprocess(file_path, orientation, remap_config, reduce_slices=Fals
     return volume, labelmap, class_weights, weights, header
 
 
-def load_and_preprocess_eval(file_path, orientation):
+def load_and_preprocess_eval(file_path, orientation, notlabel=True):
     volume_nifty = nb.load(file_path[0])
     header = volume_nifty.header
     volume = volume_nifty.get_fdata()
-    volume = (volume - np.min(volume)) / (np.max(volume) - np.min(volume))
+    if notlabel:
+        volume = (volume - np.min(volume)) / (np.max(volume) - np.min(volume))
     if orientation == "COR":
         volume = volume.transpose((2, 0, 1))
     elif orientation == "AXI":

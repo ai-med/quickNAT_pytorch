@@ -7,6 +7,7 @@ from settings import Settings
 from solver import Solver
 from utils.data_utils import get_imdb_dataset
 from utils.log_utils import LogWriter
+import logging
 import shutil
 
 torch.set_default_tensor_type('torch.FloatTensor')
@@ -178,6 +179,7 @@ if __name__ == '__main__':
     elif args.mode == 'eval':
         evaluate(eval_params, net_params, data_params, common_params, train_params)
     elif args.mode == 'eval_bulk':
+        logging.basicConfig(file='error.log')
         if args.setting_path is not None:
             settings_eval = Settings(args.setting_path)
         else:
