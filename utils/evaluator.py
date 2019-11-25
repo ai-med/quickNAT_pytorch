@@ -358,7 +358,7 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
                 nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
                 print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
                     len(file_paths)))
-                nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
+                nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii.gz')))
 
                 per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
                 volume_dict_list.append(per_volume_dict)
