@@ -2,11 +2,13 @@ import os
 from quicknat import QuickNat
 import nibabel as nib
 import numpy as np
+import logging
 import torch
 import csv
 import utils.common_utils as common_utils
 import utils.data_utils as du
 
+log = logging.getLogger(__name__)
 
 def dice_confusion_matrix(vol_output, ground_truth, num_classes, no_samples=10, mode='train'):
     dice_cm = torch.zeros(num_classes, num_classes)
@@ -92,24 +94,41 @@ def compute_structure_uncertainty(mc_pred_list, label_map, ID):
 
 def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_txt_file, remap_config, orientation,
                         prediction_path, data_id, device=0, logWriter=None, mode='eval'):
-    print("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
+    log.info("**Starting evaluation. Please check tensorboard for plots if a logWriter is provided in arguments**")
 
     batch_size = 20
 
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model = torch.load(model_path)
     cuda_available = torch.cuda.is_available()
-    if cuda_available:
-        torch.cuda.empty_cache()
-        model.cuda(device)
+    # First, are we attempting to run on a GPU?
+    if type(device) == int:
+        # if CUDA available, follow through, else warn and fallback to CPU
+        if cuda_available:
+            model = torch.load(model_path)
+            torch.cuda.empty_cache()
+            model.cuda(device)
+        else:
+            log.warning(
+                'CUDA is not available, trying with CPU.' + \
+                'This can take much longer (> 1 hour). Cancel and ' + \
+                'investigate if this behavior is not desired.'
+            )
+            # switch device to 'cpu'
+            device = 'cpu'
+    # If device is 'cpu' or CUDA not available
+    if (type(device)==str) or not cuda_available:
+        model = torch.load(
+            model_path, 
+            map_location=torch.device(device)
+        )
 
     model.eval()
 
     common_utils.create_if_not(prediction_path)
     volume_dice_score_list = []
-    print("Evaluating now...")
+    log.info("Evaluating now...")
     file_paths = du.load_file_paths(data_dir, label_dir, data_id, volumes_txt_file)
     with torch.no_grad():
         for vol_idx, file_path in enumerate(file_paths):
@@ -124,7 +143,7 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
             volume_prediction = []
             for i in range(0, len(volume), batch_size):
                 batch_x, batch_y = volume[i: i + batch_size], labelmap[i:i + batch_size]
-                if cuda_available:
+                if cuda_available and (type(device)==int):
                     batch_x = batch_x.cuda(device)
                 out = model(batch_x)
                 _, batch_output = torch.max(out, dim=1)
@@ -134,22 +153,31 @@ def evaluate_dice_score(model_path, num_classes, data_dir, label_dir, volumes_tx
             volume_dice_score = dice_score_perclass(volume_prediction, labelmap.cuda(device), num_classes, mode=mode)
 
             volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
-            nifti_img = nib.MGHImage(np.squeeze(volume_prediction), np.eye(4), header=header)
+            
+            #Copy header affine
+            Mat = np.array([
+                header['srow_x'], 
+                header['srow_y'], 
+                header['srow_z'],
+                [0,0,0,1]
+            ])
+            # Apply original image affine to prediction volume
+            nifti_img = nib.MGHImage(np.squeeze(volume_prediction), Mat, header=header)
             nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.mgz')))
             if logWriter:
                 logWriter.plot_dice_score('val', 'eval_dice_score', volume_dice_score, volumes_to_use[vol_idx], vol_idx)
 
             volume_dice_score = volume_dice_score.cpu().numpy()
             volume_dice_score_list.append(volume_dice_score)
-            print(volume_dice_score, np.mean(volume_dice_score))
+            log.info(volume_dice_score, np.mean(volume_dice_score))
         dice_score_arr = np.asarray(volume_dice_score_list)
         avg_dice_score = np.mean(dice_score_arr)
-        print("Mean of dice score : " + str(avg_dice_score))
+        log.info("Mean of dice score : " + str(avg_dice_score))
         class_dist = [dice_score_arr[:, c] for c in range(num_classes)]
 
         if logWriter:
             logWriter.plot_eval_box_plot('eval_dice_score_box_plot', class_dist, 'Box plot Dice Score')
-    print("DONE")
+    log.info("DONE")
 
     return avg_dice_score, class_dist
 
@@ -164,7 +192,7 @@ def _segment_vol(file_path, model, orientation, batch_size, cuda_available, devi
     volume_pred = []
     for i in range(0, len(volume), batch_size):
         batch_x = volume[i: i + batch_size]
-        if cuda_available:
+        if cuda_available and (type(device)==int):
             batch_x = batch_x.cuda(device)
         out = model(batch_x)
         # _, batch_output = torch.max(out, dim=1)
@@ -197,7 +225,7 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
         volume_pred = []
         for i in range(0, len(volume), batch_size):
             batch_x = volume[i: i + batch_size]
-            if cuda_available:
+            if cuda_available and (type(device)==int):
                 batch_x = batch_x.cuda(device)
             out = model.predict(batch_x, enable_dropout=True, out_prob=True)
             # _, batch_output = torch.max(out, dim=1)
@@ -229,7 +257,7 @@ def _segment_vol_unc(file_path, model, orientation, batch_size, mc_samples, cuda
 
 
 def compute_vol_bulk(prediction_dir, dir_struct, label_names, volumes_txt_file):
-    print("**Computing volume estimates**")
+    log.info("**Computing volume estimates**")
 
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
@@ -244,25 +272,42 @@ def compute_vol_bulk(prediction_dir, dir_struct, label_names, volumes_txt_file):
         volume_dict_list.append(per_volume_dict)
 
     _write_csv_table('volume_estimates.csv', prediction_dir, volume_dict_list, label_names)
-    print("**DONE**")
+    log.info("**DONE**")
 
 
 def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size, orientation,
-             label_names, dir_struct, need_unc=False, mc_samples=0):
-    print("**Starting evaluation**")
+             label_names, dir_struct, need_unc=False, mc_samples=0, exit_on_error=False):
+    log.info("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model = torch.load(coronal_model_path)
     cuda_available = torch.cuda.is_available()
-    if cuda_available:
-        torch.cuda.empty_cache()
-        model.cuda(device)
+    # First, are we attempting to run on a GPU?
+    if type(device) == int:
+        # if CUDA available, follow through, else warn and fallback to CPU
+        if cuda_available:
+            model = torch.load(coronal_model_path)
+            torch.cuda.empty_cache()
+            model.cuda(device)
+        else:
+            log.warning(
+                'CUDA is not available, trying with CPU. ' + \
+                'This can take much longer (> 1 hour). Cancel and ' + \
+                'investigate if this behavior is not desired.'
+            )
+            # switch device to 'cpu'
+            device = 'cpu'
+    # If device is 'cpu' or CUDA not available
+    if (type(device)==str) or not cuda_available:
+        model = torch.load(
+            coronal_model_path, 
+            map_location=torch.device(device)
+        )
 
     model.eval()
 
     common_utils.create_if_not(prediction_path)
-    print("Evaluating now...")
+    log.info("Evaluating now...")
     file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file, dir_struct)
 
     with torch.no_grad():
@@ -283,15 +328,33 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
                     _, volume_prediction, header = _segment_vol(file_path, model, orientation, batch_size,
                                                                 cuda_available,
                                                                 device)
-
-                nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
-                print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
+                                                                
+                #Copy header affine
+                Mat = np.array([
+                    header['srow_x'], 
+                    header['srow_y'], 
+                    header['srow_z'],
+                    [0,0,0,1]
+                ])
+                # Apply original image affine to prediction volume
+                nifti_img = nib.Nifti1Image(volume_prediction, Mat, header=header)
+                log.info("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
                     len(file_paths)))
-                nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii')))
+                save_file = os.path.join(prediction_path, volumes_to_use[vol_idx])
+                if '.nii' not in save_file:
+                    save_file += '.nii.gz'
+                nib.save(nifti_img, save_file)
                 per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
                 volume_dict_list.append(per_volume_dict)
-            except FileNotFoundError:
-                print("Error in reading the file ...")
+            except FileNotFoundError as exp:
+                log.error("Error in reading the file ...")
+                log.exception(exp)
+                if exit_on_error:
+                    raise(exp)
+            except Exception as exp:
+                log.exception(exp)
+                if exit_on_error:
+                    raise(exp)
 
         _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
@@ -299,30 +362,47 @@ def evaluate(coronal_model_path, volumes_txt_file, data_dir, device, prediction_
             _write_csv_table('cvs_uncertainty.csv', prediction_path, cvs_dict_list, label_names)
             _write_csv_table('iou_uncertainty.csv', prediction_path, iou_dict_list, label_names)
 
-    print("DONE")
+    log.info("DONE")
 
 
 def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_dir, device, prediction_path, batch_size,
-                  label_names, dir_struct, need_unc=False, mc_samples=0):
-    print("**Starting evaluation**")
+                  label_names, dir_struct, need_unc=False, mc_samples=0, exit_on_error=False):
+    log.info("**Starting evaluation**")
     with open(volumes_txt_file) as file_handle:
         volumes_to_use = file_handle.read().splitlines()
 
-    model1 = torch.load(coronal_model_path)
-
-    model2 = torch.load(axial_model_path)
-
     cuda_available = torch.cuda.is_available()
-    if cuda_available:
-        torch.cuda.empty_cache()
-        model1.cuda(device)
-        model2.cuda(device)
+    if type(device) == int:
+        # if CUDA available, follow through, else warn and fallback to CPU
+        if cuda_available:
+            model1 = torch.load(coronal_model_path)
+            model2 = torch.load(axial_model_path)
+            
+            torch.cuda.empty_cache()
+            model1.cuda(device)
+            model2.cuda(device)
+        else:
+            log.warning(
+                'CUDA is not available, trying with CPU.' + \
+                'This can take much longer (> 1 hour). Cancel and ' + \
+                'investigate if this behavior is not desired.'
+            )
+
+    if (type(device)==str) or not cuda_available:
+        model1 = torch.load(
+            coronal_model_path, 
+            map_location=torch.device(device)
+        )
+        model2 = torch.load(
+            axial_model_path, 
+            map_location=torch.device(device)
+        )
 
     model1.eval()
     model2.eval()
 
     common_utils.create_if_not(prediction_path)
-    print("Evaluating now...")
+    log.info("Evaluating now...")
 
     file_paths = du.load_file_paths_eval(data_dir, volumes_txt_file, dir_struct)
 
@@ -355,20 +435,34 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
                 _, volume_prediction = torch.max(volume_prediction_axi + volume_prediction_cor, dim=1)
                 volume_prediction = (volume_prediction.cpu().numpy()).astype('float32')
                 volume_prediction = np.squeeze(volume_prediction)
-                nifti_img = nib.Nifti1Image(volume_prediction, np.eye(4), header=header)
-                print("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
+
+                #Copy header affine
+                Mat = np.array([
+                    header['srow_x'], 
+                    header['srow_y'], 
+                    header['srow_z'],
+                    [0,0,0,1]
+                ])
+                # Apply original image affine to prediction volume
+                nifti_img = nib.Nifti1Image(volume_prediction, Mat, header=header)
+
+                log.info("Processed: " + volumes_to_use[vol_idx] + " " + str(vol_idx + 1) + " out of " + str(
                     len(file_paths)))
                 nib.save(nifti_img, os.path.join(prediction_path, volumes_to_use[vol_idx] + str('.nii.gz')))
 
                 per_volume_dict = compute_volume(volume_prediction, label_names, volumes_to_use[vol_idx])
                 volume_dict_list.append(per_volume_dict)
 
-            except FileNotFoundError:
-                print("Error in reading the file ...")
+            except FileNotFoundError as exp:
+                log.error("Error in reading the file ...")
+                log.exception(exp)
+                if exit_on_error:
+                    raise(exp)                
             except Exception as exp:
-                import logging
-                logging.getLogger(__name__).exception(exp)
-                # print("Other kind o error!")
+                log.exception(exp)
+                if exit_on_error:
+                    raise(exp)
+                # log.info("Other kind o error!")
 
         _write_csv_table('volume_estimates.csv', prediction_path, volume_dict_list, label_names)
 
@@ -376,4 +470,4 @@ def evaluate2view(coronal_model_path, axial_model_path, volumes_txt_file, data_d
             _write_csv_table('cvs_uncertainty.csv', prediction_path, cvs_dict_list, label_names)
             _write_csv_table('iou_uncertainty.csv', prediction_path, iou_dict_list, label_names)
 
-    print("DONE")
+    log.info("DONE")
