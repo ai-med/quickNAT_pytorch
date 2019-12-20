@@ -107,6 +107,10 @@ def evaluate_bulk(eval_bulk):
     need_unc = eval_bulk['estimate_uncertainty']
     mc_samples = eval_bulk['mc_samples']
     dir_struct = eval_bulk['directory_struct']
+    if 'exit_on_error' in eval_bulk.keys():
+        exit_on_error = eval_bulk['exit_on_error']
+    else:
+        exit_on_error = False
 
     if eval_bulk['view_agg'] == 'True':
         coronal_model_path = eval_bulk['coronal_model_path']
@@ -120,7 +124,8 @@ def evaluate_bulk(eval_bulk):
                          label_names,
                          dir_struct,
                          need_unc,
-                         mc_samples)
+                         mc_samples,
+                         exit_on_error=exit_on_error)
     else:
         coronal_model_path = eval_bulk['coronal_model_path']
         eu.evaluate(coronal_model_path,
@@ -133,7 +138,8 @@ def evaluate_bulk(eval_bulk):
                     label_names,
                     dir_struct,
                     need_unc,
-                    mc_samples)
+                    mc_samples,
+                    exit_on_error=exit_on_error)
 
 def compute_vol(eval_bulk):
     prediction_path = eval_bulk['save_predictions_dir']
