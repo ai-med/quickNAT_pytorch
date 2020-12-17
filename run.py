@@ -22,6 +22,7 @@ def load_data(data_params):
 
 
 def train(train_params, common_params, data_params, net_params):
+
     train_data, test_data = load_data(data_params)
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=train_params['train_batch_size'], shuffle=True,
