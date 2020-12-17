@@ -25,18 +25,18 @@ class QuickNat(nn.Module):
                         'drop_out':0.2}
         """
         super(QuickNat, self).__init__()
-
-        self.encode1 = sm.EncoderBlock(params, se_block_type=se.SELayer(params['se_block']))
+        print(se.SELayer(params['se_block']))
+        self.encode1 = sm.EncoderBlock(params, se_block_type=params['se_block'])
         params['num_channels'] = params['num_filters']
-        self.encode2 = sm.EncoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.encode3 = sm.EncoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.encode4 = sm.EncoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.bottleneck = sm.DenseBlock(params, se_block_type=se.SELayer(params['se_block']))
+        self.encode2 = sm.EncoderBlock(params, se_block_type=params['se_block'])
+        self.encode3 = sm.EncoderBlock(params, se_block_type=params['se_block'])
+        self.encode4 = sm.EncoderBlock(params, se_block_type=params['se_block'])
+        self.bottleneck = sm.DenseBlock(params, se_block_type=params['se_block'])
         params['num_channels'] = params['num_filters'] * 2
-        self.decode1 = sm.DecoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.decode2 = sm.DecoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.decode3 = sm.DecoderBlock(params, se_block_type=se.SELayer(params['se_block']))
-        self.decode4 = sm.DecoderBlock(params, se_block_type=se.SELayer(params['se_block']))
+        self.decode1 = sm.DecoderBlock(params, se_block_type=params['se_block'])
+        self.decode2 = sm.DecoderBlock(params, se_block_type=params['se_block'])
+        self.decode3 = sm.DecoderBlock(params, se_block_type=params['se_block'])
+        self.decode4 = sm.DecoderBlock(params, se_block_type=params['se_block'])
         params['num_channels'] = params['num_filters']
         self.classifier = sm.ClassifierBlock(params)
 
