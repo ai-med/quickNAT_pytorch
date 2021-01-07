@@ -94,7 +94,7 @@ class LogWriter(object):
 
     def dice_score_per_epoch(self, phase, output, correct_labels, epoch):
         print("Dice Score...", end='', flush=True)
-        ds = eu.dice_score_perclass(output, correct_labels, self.num_class)
+        ds = eu.dice_score_perclass(output, correct_labels, self.num_class, mode=phase)
         self.plot_dice_score(phase, 'dice_score_per_epoch', ds, 'Dice Score', epoch)
         ds_mean = torch.mean(ds)
         print("DONE", flush=True)

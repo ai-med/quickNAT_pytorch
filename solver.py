@@ -154,7 +154,9 @@ class Solver(object):
                 'arch': self.model_name,
                 'state_dict': model.state_dict(),
                 'optimizer': optim.state_dict(),
-                'scheduler': scheduler.state_dict()
+                'scheduler': scheduler.state_dict(),
+                'best_ds_mean': self.best_ds_mean,
+                'best_ds_mean_epoch': self.best_ds_mean_epoch
             }, os.path.join(self.exp_dir_path, CHECKPOINT_DIR,
                             'checkpoint_epoch_' + str(epoch) + '.' + CHECKPOINT_EXTENSION)) 
 
@@ -200,6 +202,9 @@ class Solver(object):
         self.start_iteration = checkpoint['start_iteration']
         self.model.load_state_dict(checkpoint['state_dict'])
         self.optim.load_state_dict(checkpoint['optimizer'])
+        if 'best_ds_mean' in checkpoint.keys():
+            self.best_ds_mean = checkpoint['best_ds_mean']
+            self.best_ds_mean_epoch = checkpoint['best_ds_mean_epoch']
 
         for state in self.optim.state.values():
             for k, v in state.items():
