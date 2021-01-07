@@ -30,6 +30,8 @@ def train(train_params, common_params, data_params, net_params):
     val_loader = torch.utils.data.DataLoader(test_data, batch_size=train_params['val_batch_size'], shuffle=False,
                                              num_workers=4, pin_memory=True)
 
+    net_params_ = net_params.copy()
+    empty_model = QuickNat(net_params_)
     if train_params['use_pre_trained']:
         quicknat_model = torch.load(train_params['pre_trained_path'])
     else:
@@ -55,7 +57,9 @@ def train(train_params, common_params, data_params, net_params):
 
     solver.train(train_loader, val_loader)
     final_model_path = os.path.join(common_params['save_model_dir'], train_params['final_model_file'])
-    quicknat_model.save(final_model_path)
+    # quicknat_model.save(final_model_path)
+    solver.model = empty_model
+    solver.save_best_model(final_model_path)
     print("final model saved @ " + str(final_model_path))
 
 
